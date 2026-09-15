@@ -1,0 +1,12 @@
+{
+  "manifest_version": 2,
+  "name": "Pathbridger",
+  "version": "0.1.0",
+  "description": "Paizo forum highlighting and Pathbuilder-informed dice completion.",
+  "browser_specific_settings": {"gecko": {"id": "pathbridger@local.invalid", "strict_min_version": "109.0"}},
+  "permissions": ["storage"],
+  "content_scripts": [{"matches": ["https://paizo.com/*", "https://www.paizo.com/*"], "js": ["core.js", "content.js"], "css": ["content.css"]}],
+  "options_ui": {"page": "options.html", "open_in_tab": true},
+  "browser_action": {"default_title": "Pathbridger character settings"},
+  "background": {"scripts": ["background.js"]}
+}

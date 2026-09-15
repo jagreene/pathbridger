@@ -1,0 +1,1 @@
+{"success":true,"build":{"name":"Test Adventurer","weapons":[{"name":"Hatchet","die":"d6","str":"","display":"Test Hatchet","attack":13,"damageBonus":4,"extraDamage":["+2 Empowerment"],"increasedDice":false}]}}
