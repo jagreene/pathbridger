@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8"><style>body{font:16px system-ui;padding:25px}textarea{height:220px}pre{position:static;background:white;color:white}button{cursor:pointer}</style><link rel="stylesheet" href="../extension/content.css"><h1>Editor regression checks</h1><div id="results"></div><textarea>[b]Readable text[/b] and [dice=Strike]1d20+8[/dice]</textarea><script>window.browser={storage:{local:{get:async()=>({})},onChanged:{addListener(fn){window.testStorageChange=fn;}}}};</script><script src="../extension/api.js"></script><script src="../extension/core.js"></script><script src="../extension/buffs.js"></script><script src="../extension/content.js"></script><script>
+const results=[];function check(value,name){results.push((value?'PASS: ':'FAIL: ')+name);}
+check(document.querySelector('textarea').dataset.pathbridger === 'active' && !document.querySelector('.pb-enable'),'editor activates automatically');
+const t=document.querySelector('textarea'),p=document.querySelector('.pb-highlight'),b=document.querySelector('.pb-panel button');
+check(p.textContent.includes('Readable text') && !p.hidden,'highlight rendered');
+check(getComputedStyle(p).position==='absolute' && getComputedStyle(p).zIndex==='2','overlay resists page styles');
+b.click();check(t.classList.contains('pb-plain') && p.hidden && getComputedStyle(t).color==='rgb(37, 56, 48)','toggle restores plain text');
+b.click();check(t.classList.contains('pb-highlight-active') && !p.hidden,'toggle re-enables highlighting');
+t.value+=' More text';t.dispatchEvent(new Event('input'));check(p.textContent.includes('More text'),'input updates overlay');
+const highlight=Pathbridger.highlight;Pathbridger.highlight=()=>{throw Error('Simulated rendering failure');};t.dispatchEvent(new Event('input'));check(t.classList.contains('pb-plain') && p.hidden,'render failure keeps text readable');
+Pathbridger.highlight=highlight;b.click();check(!p.hidden && t.classList.contains('pb-highlight-active'),'toggle recovers after failure');
+document.querySelector('#results').textContent=results.join(' | ');
+document.querySelector('#results').style.color=results.some(s=>s.startsWith('FAIL'))?'red':'green';
+</script><script>
+window.testStorageChange({character:{newValue:{name:'Synthetic test',actions:[{kind:'strike',name:'Test Axe',attack:12,agile:true}]}}},'local');
+t.focus();t.value='[dice=Test]';t.setSelectionRange(10,10);t.dispatchEvent(new Event('input'));
+const popup=document.querySelector('.pb-menu');
+check(!popup.hidden && getComputedStyle(popup).position==='fixed','menu floats outside editor flow');
+const option=popup.querySelector('button');option.click();option.click();
+check((t.value.match(/1d20/g)||[]).length===1,'repeated click inserts exactly one attack');
+check(t.value.startsWith('[dice=Strike (Test Axe)]'),'weapon completion uses Strike label');
+t.value='[dice=Test]';t.setSelectionRange(10,10);t.dispatchEvent(new Event('input'));
+const key=new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true});t.dispatchEvent(key);
+check(key.defaultPrevented && (t.value.match(/1d20/g)||[]).length===1,'Tab completes once and prevents focus traversal');
+check(popup.hidden,'menu closes after completion');
+document.querySelector('#results').textContent=results.join(' | ');
+document.querySelector('#results').style.color=results.some(s=>s.startsWith('FAIL'))?'red':'green';
+</script><script>
+t.focus();t.value='[Dice=St]';t.setSelectionRange(t.value.length,t.value.length);t.dispatchEvent(new Event('input'));
+check(!popup.hidden && popup.textContent.includes('Strike (Test Axe)'), 'suggestions after closing label bracket');
+document.querySelector('#results').textContent=results.join(' | ');
+document.querySelector('#results').style.color=results.some(s=>s.startsWith('FAIL'))?'red':'green';
+</script>

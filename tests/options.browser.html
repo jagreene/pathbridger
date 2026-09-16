@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Pathbridger options tests</title><link rel="stylesheet" href="../extension/options.css"></head><body><p id="test-result">Running options tests…</p><script>
+(async()=>{
+ const html=await (await fetch('../extension/options.html')).text();
+ const parsed=new DOMParser().parseFromString(html,'text/html');document.body.append(parsed.querySelector('main'));
+ let library={version:1,records:[{id:'hero',name:'Test Hero',actions:[{name:'Custom action',attack:12}],revision:0}],activeId:'hero',candidates:[{name:'Test Hero',source:{mode:'gdrive',scope:'drive',saveId:'file-A'}}]};
+ globalThis.browser={runtime:{sendMessage:async message=>{
+   let result;
+   if(message.type!=='library')result=PathbridgerCharacters.mutate(library,message,Pathbridger,()=> 'new-character');
+   return {library:structuredClone(library),result};
+ }},storage:{local:{get:async()=>({})},onChanged:{addListener(){}}}};
+ for(const file of ['api.js','core.js','characters.js','rules.js','options.js'])await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='../extension/'+file;s.onload=resolve;s.onerror=reject;document.body.append(s);});
+ const pause=()=>new Promise(r=>setTimeout(r,0));const el=id=>document.getElementById(id);const check=(value,message)=>{if(!value)throw Error(message);};
+ await pause();check(el('name').value==='Test Hero','migration/initial display');
+ el('save-sources').value='0';el('link-save').click();await pause();check(library.records[0].source.saveId==='file-A','link source');
+ check(el('sync-status').textContent.includes('Save again'),'link status');
+ el('name').value='Edited Hero';el('name').dispatchEvent(new Event('input'));el('save').click();await pause();check(library.records[0].name==='Edited Hero','save edit');
+ el('characters').value='';el('characters').dispatchEvent(new Event('change'));check(el('name').value==='','new character form');
+ el('name').value='Other';el('actions').value='[]';el('save').click();await pause();check(library.records.length===2,'create second character');
+ el('characters').value='hero';el('characters').dispatchEvent(new Event('change'));el('activate').click();await pause();check(library.activeId==='hero','set active character');
+ el('unlink-save').click();await pause();check(!library.records[0].source,'unlink character');
+ const c=library.records[0];c.generatedActions=[{name:'Custom action',attack:19}];c.actions.push({name:'Unique action',attack:3});c.lastSave={startedAt:1,savedAt:Date.now()};c.calculatedFor=1;c.revision++;
+ el('reload-character').click();await pause();el('use-calculated').click();el('save').click();await pause();
+ check(c.actions[0].attack===19&&c.actions[1].name==='Unique action','adopt calculated actions and preserve unique custom');
+ el('test-result').textContent='PASS — options: load, link, edit, create, select, activate, unlink, adopt calculated rolls';
+})().catch(error=>{document.getElementById('test-result').textContent='FAIL — '+error.stack;});
+</script></body></html>
