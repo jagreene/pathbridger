@@ -3,12 +3,12 @@
 <button id="sidenav-share">Synthetic raw exporter</button><button id="sidenav-json">Synthetic JSON exporter</button>
 <!-- Inert marker enables the version guard for this synthetic protocol fixture. -->
 <script type="application/json" src="https://pathbuilder2e-data.b-cdn.net/Pathbuilder2eWebRemastered109g.js"></script>
-<script src="../extension/core.js"></script><script src="../extension/rules.js"></script><script src="../extension/characters.js"></script><script src="../extension/export-data.js"></script>
+<script src="../extension/core.js?v=0.2.2"></script><script src="../extension/rules.js?v=0.2.2"></script><script src="../extension/characters.js?v=0.2.2"></script><script src="../extension/export-data.js?v=0.2.2"></script>
 <script>
 const syntheticRaw={characterName:'Synthetic browser hero',characterLevel:5,webID:'synthetic-browser-id',listPlayerWeapons:[]};
 const syntheticExport={build:{name:syntheticRaw.characterName,level:5,weapons:[{name:'Hatchet',attack:14,damage:'2d6+4',traits:['agile']}]}};
 const oldExport={build:{...syntheticExport.build,level:4,weapons:[{name:'Hatchet',attack:11,damage:'1d6+3',traits:['agile']}]}};
-const library={version:1,activeId:'hero',candidates:[],records:[{id:'hero',name:syntheticRaw.characterName,revision:1,source:{mode:'local',scope:'pathbuilder2e_db',saveId:'synthetic-browser-id'},actions:Pathbridger.normalize(oldExport).actions,generatedActions:Pathbridger.normalize(oldExport).actions,useNethys:false}]};
+const library={version:1,activeId:null,candidates:[],records:[]};
 let uploads=0,publishedIds=0;
 const nativeSend=XMLHttpRequest.prototype.send;
 XMLHttpRequest.prototype.send=function(){uploads++;return Reflect.apply(nativeSend,this,arguments);};
@@ -21,17 +21,18 @@ for(const [id,path,body] of [['sidenav-share','post_emailed.php',()=>JSON.string
  };
 }
 globalThis.browser={runtime:{sendMessage:async message=>{
+ if(message.type==='pathbuilder-status')return {ok:true};
  let result;
  if(message.type==='pathbuilder-save')result=PathbridgerCharacters.applySave(library,PathbridgerCharacters.snapshot(message.snapshot),Date.now());
  else result=PathbridgerCharacters.applyExport(library,message,Pathbridger,PathbridgerRules,PathbridgerExportData,{},Date.now());
  if(result==='refreshed'){
   const action=library.records[0].actions[0];
-  document.getElementById('test-result').textContent=action.attack===14&&action.damage==='2d6+4'&&uploads===0&&publishedIds===0&&!document.getElementById('ring-holder')?'PASS — real IndexedDB commit, native XHR capture, verified identity, refreshed rolls, zero uploads':'FAIL — incorrect action or upload';
+  document.getElementById('test-result').textContent=library.records.length===1&&library.activeId===library.records[0].id&&action.attack===14&&action.damage==='2d6+4'&&uploads===0&&publishedIds===0&&!document.getElementById('ring-holder')?'PASS — first save creates and selects character, real IndexedDB commit, native XHR capture, verified identity, refreshed rolls, zero uploads':'FAIL — incorrect action or upload';
  }
  return {result,requestExport:message.type==='pathbuilder-save'&&result==='saved'};
 }}};
 </script>
-<script src="../extension/api.js"></script><script src="../extension/pathbuilder-export.js"></script><script src="../extension/pathbuilder-observer.js"></script><script src="../extension/pathbuilder-content.js"></script>
+<script src="../extension/api.js?v=0.2.2"></script><script src="../extension/pathbuilder-export.js?v=0.2.2"></script><script src="../extension/pathbuilder-observer.js?v=0.2.2"></script><script src="../extension/pathbuilder-content.js?v=0.2.2"></script>
 <script>
 const openDB=indexedDB.open('pathbuilder2e_db',1);
 openDB.onupgradeneeded=()=>openDB.result.createObjectStore('saves');

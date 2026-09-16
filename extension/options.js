@@ -1,13 +1,39 @@
 const $ = id => document.getElementById(id);
-let library, currentId = null, currentRevision = 0, importedBuild = null, generatedActions = null, adoptCalculated = false, dirty = false;
+let library=null, currentId = null, currentRevision = 0, importedBuild = null, generatedActions = null, adoptCalculated = false, dirty = false;
 async function command(message) {
   const response = await PathbridgerAPI.runtime.sendMessage(message);
   if (!response || response.error) throw Error(response?.error || 'Extension background is unavailable. Reload the extension.');
+  if(response.library?.version!==1 || !Array.isArray(response.library.records) || !Array.isArray(response.library.candidates))throw Error('Character library was not returned by the extension. Reload Pathbridger, then reopen its settings.');
+  const wasReady=!!library;
   library = response.library;
+  if(!wasReady)setReady(true);
+  renderConnection(response.connection);
+  await checkAccess();
   return response;
 }
+function setReady(ready) {
+  for(const id of ['import','save','characters','activate','clear','link-save','unlink-save','download-save','use-calculated'])$(id).disabled=!ready;
+}
+setReady(false);
+function renderConnection(connection) {
+  $('sync-connection').textContent=connection?.observerReady ? `Pathbuilder save detection started${connection.seenAt ? ' at '+new Date(connection.seenAt).toLocaleString() : ''}. Save in that browser to sync automatically.` : connection ? 'Pathbuilder is open, but save detection did not start. Reload the Pathbuilder tab after reloading the extension.' : 'No Pathbuilder connection yet. Open or reload Pathbuilder in the same browser as this extension.';
+}
+async function checkAccess() {
+  if(!PathbridgerAPI.permissions?.contains)return;
+  const allowed=await PathbridgerAPI.permissions.contains({origins:['https://pathbuilder2e.com/*']});
+  $('enable-pathbuilder').hidden=allowed;
+  if(!allowed)$('sync-connection').textContent='Pathbridger needs site access to detect Pathbuilder saves. Enable access, then reload your Pathbuilder tab.';
+}
+$('enable-pathbuilder').onclick=async()=>{
+  try {
+    const granted=await PathbridgerAPI.permissions.request({origins:['https://pathbuilder2e.com/*']});
+    await checkAccess();
+    $('status').textContent=granted?'Pathbuilder access enabled. Reload Pathbuilder, save a character, and it will appear here.':'Pathbuilder access was not enabled.';
+  }catch(error){report(error);}
+};
+checkAccess().catch(()=>{});
 function renderList() {
-  $('characters').replaceChildren(new Option('New character', ''));
+  $('characters').replaceChildren(new Option('New manual character', ''));
   for (const c of library.records) $('characters').add(new Option(`${c.name}${c.id === library.activeId ? ' (active on Paizo)' : ''}`, c.id));
   $('characters').value = currentId || '';
   $('save-sources').replaceChildren(new Option('Choose a detected Pathbuilder save', ''));
@@ -20,21 +46,21 @@ function showCharacter(id) {
   $('name').value = c?.name || '';
   $('actions').value = JSON.stringify(c?.actions || [],null,2);
   $('source').value = ''; $('file').value = ''; $('warnings').textContent = '';
-  $('sync-status').textContent = c?.source ? `Linked to ${c.source.mode} save ${c.source.saveId}. ${c.lastSave ? 'Last synced: '+new Date(c.lastSave.savedAt).toLocaleString()+'.' : 'Save again in Pathbuilder to sync its data.'} ${c.actionsNeedReview ? [c.syncError,...(c.syncWarnings||[]),'Actions need review; custom edits have been kept.'].filter(Boolean).join(' ') : ''}` : 'Not linked. Save in Pathbuilder, refresh this list, then link the matching save.';
+  $('sync-status').textContent = c?.source ? `Linked to ${c.source.mode} save ${c.source.saveId}. ${c.lastSave ? 'Last synced: '+new Date(c.lastSave.savedAt).toLocaleString()+'.' : 'Save again in Pathbuilder to sync its data.'} ${c.actionsNeedReview ? [c.syncError,...(c.syncWarnings||[]),'Actions need review; custom edits have been kept.'].filter(Boolean).join(' ') : ''}` : 'Manual character. Saving in Pathbuilder automatically adds a separate synced character; existing manual actions are kept.';
   $('use-calculated').disabled=!c?.lastSave || c.calculatedFor!==c.lastSave.startedAt || !c.generatedActions;
   $('activate').disabled = !c; $('clear').disabled = !c; $('link-save').disabled = !c; $('unlink-save').disabled = !c?.source; $('download-save').disabled = !c?.lastSave;
   renderList();
 }
 async function load(id) { await command({type:'library'}); showCharacter(id === undefined ? library.activeId : id); }
 const report = error => $('status').textContent = error.message;
-load().catch(report);
+load().catch(error=>{setReady(false);report(error);});
 for (const id of ['name','actions','source']) $(id).addEventListener('input',()=>{dirty=true;});
 $('characters').onchange = () => {
   if (dirty) { $('characters').value=currentId || ''; $('status').textContent='Save your edits or click Reload before switching characters.'; return; }
   showCharacter($('characters').value);
 };
 $('refresh-library').onclick = async () => {
-  try { await command({type:'library'}); renderList(); $('status').textContent='Detected saves refreshed. Your edits are unchanged.'; } catch(e) { report(e); }
+  try { await command({type:'library'}); await checkAccess(); renderList(); $('status').textContent='Detected saves refreshed. Your edits are unchanged.'; } catch(e) { report(e); }
 };
 $('reload-character').onclick = () => load(currentId).then(()=>{$('status').textContent='Reloaded.';}).catch(report);
 $('activate').onclick = async () => {try {await command({type:'select',id:currentId});renderList();$('status').textContent='Active character updated in Paizo editors.';}catch(e){report(e);}};
@@ -69,8 +95,11 @@ $('file').addEventListener('change', async () => {
 });
 $('import').onclick = async () => {
   const selectedId=currentId;
+  if(!library){report(Error('Character library is unavailable. Click Reload before importing.'));return;}
   for(const id of ['import','save','clear','characters','reload-character','link-save','unlink-save']) $(id).disabled=true;
   try {
+    // Fail before costly lookups if initialization or background messaging failed.
+    await command({type:'library'});
     const data = JSON.parse($('source').value);
     let c = Pathbridger.normalize(data);
     if ($('nethys').checked) {
@@ -94,7 +123,8 @@ $('import').onclick = async () => {
   finally {
     for(const id of ['import','save','characters','reload-character']) $(id).disabled=false;
     $('clear').disabled=!currentId;$('link-save').disabled=!currentId;
-    $('unlink-save').disabled=!library.records.find(c=>c.id===currentId)?.source;
+    $('unlink-save').disabled=!library?.records.find(c=>c.id===currentId)?.source;
+    if(!library)setReady(false);
   }
 };
 $('save').onclick = async () => {
@@ -106,5 +136,9 @@ $('save').onclick = async () => {
 };
 $('clear').onclick = async () => {try {await command({type:'delete',id:currentId});showCharacter(library.activeId);$('status').textContent='Character removed from Pathbridger.';}catch(e){report(e);}};
 PathbridgerAPI.storage.onChanged.addListener((changes,area)=>{
-  if(area==='local' && changes.characterLibrary) $('status').textContent='Saved character data changed. Reload to view it; unsaved edits are preserved.';
+  if(area==='local' && changes.pathbuilderConnection){renderConnection(changes.pathbuilderConnection.newValue);checkAccess().catch(report);}
+  if(area==='local' && changes.characterLibrary) {
+    if(dirty || $('import').disabled) $('status').textContent='Saved character data changed. Reload to view it; unsaved edits are preserved.';
+    else load(currentId || undefined).catch(report);
+  }
 });

@@ -11,9 +11,11 @@ Drive saves upload an internal `ExportBundle` with `characterData` via
 `PATCH https://www.googleapis.com/upload/drive/v3/files/<fileId>?uploadType=media`.
 Only HTTP 200 counts as success. Metadata writes and save-button clicks do not.
 
-Each extension character has a UUID and an explicitly linked source (mode,
+Each extension character has a UUID and an automatically linked source (mode,
 scope, persistent save ID). Names and public JSON/share IDs are not identities.
-Unlinked saves only create metadata suggestions. Active Paizo character selection
+Unknown save IDs create separate records and request calculation on that same save.
+The first record becomes active; subsequent saves preserve the active selection.
+Legacy manual records are never merged by name. Active Paizo character selection
 is independent of which linked record is updated. Background writes are serialized;
 older snapshots and export results superseded by saves/settings edits are rejected.
 

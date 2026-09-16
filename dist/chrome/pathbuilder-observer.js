@@ -12,6 +12,11 @@
     while(savedSnapshots.size>8)savedSnapshots.delete(savedSnapshots.keys().next().value);
     post({channel, snapshot}, location.origin);
   } catch (_) { /* Extension must not break a save. */ }};
+  const ready=()=>post({channel:'pathbridger-observer-ready-v1'},location.origin);
+  window.addEventListener?.('message',event=>{
+    if(event.source===window&&event.origin===location.origin&&event.data?.channel==='pathbridger-observer-ping-v1')ready();
+  });
+  ready();
   let exports=Promise.resolve();
   window.addEventListener?.('message',event=>{
     if(event.source!==window||event.origin!==location.origin||event.data?.channel!=='pathbridger-export-request-v1')return;

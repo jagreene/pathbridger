@@ -1,20 +1,61 @@
 # Pathbridger
 
-A dependency-free Chrome and Firefox extension prototype for Paizo play-by-post, with Pathbuilder 2e JSON import.
+A dependency-free Chrome and Firefox extension for Paizo play-by-post, with
+Pathbuilder 2e import and browser-side save sync.
 
-## Try it
+## Current state
 
-1. Run `node scripts/build.cjs` (Node 18 or newer).
-2. Load the build for your browser:
-   - **Chrome 111+:** open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `dist/chrome`.
-   - **Firefox 128+:** open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select `dist/firefox/manifest.json`. The source `extension/manifest.json` can also be loaded directly in Firefox.
-3. Click the Pathbridger toolbar button to open character settings.
-4. In Pathbuilder Web, use **Export → Export JSON**. Import the JSON file or paste its contents into settings.
-5. Review and correct actions, bonuses, traits, and damage; save the character.
-6. Open a Paizo post editor; Pathbridger activates automatically.
-7. Start `[dice=` (any capitalization) and type part of an action name, such as `[dice=exploit`. The `/action` shortcut also works. Choose with arrows and complete with Tab or Enter. Escape dismisses.
+Pathbridger is a development build, not a signed browser-store release. Version
+0.2.2 is committed as ready-to-load, unpacked extension folders in `dist/`:
 
-Temporary Firefox add-ons are removed when Firefox restarts. These are development builds, not signed store distributions. After edits, rebuild, reload the extension on the browser’s extension page, and refresh Paizo tabs. Allow access to Paizo for editor features and to `elasticsearch.aonprd.com` for Nethys lookups; denied or revoked permissions can prevent these features from running. Character settings and buffs stay separate in each browser profile.
+- `dist/chrome` for Chrome 111 and newer.
+- `dist/firefox` for Firefox 128 and newer.
+
+The committed `dist` folders are included for easy sharing and installation; no
+Node.js build step is needed to use them. They are a snapshot of the source at
+the commit that contains them. Rebuild after changing `extension/` so the
+packages include those changes.
+
+## Install from the committed `dist` files
+
+Download or clone this repository, keeping the entire selected `dist` folder
+together. Do not select individual JavaScript files.
+
+### Chrome
+
+1. Open `chrome://extensions`.
+2. Turn on **Developer mode**.
+3. Click **Load unpacked** and select the `dist/chrome` directory.
+4. Click the Pathbridger toolbar button to open character settings.
+
+### Firefox
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on**.
+3. Select `dist/firefox/manifest.json`.
+4. Click the Pathbridger toolbar button to open character settings.
+
+Firefox temporary add-ons are removed when Firefox restarts. These files are
+not signed, so permanent Firefox installation requires signing or packaging for
+an appropriate Firefox distribution.
+
+## First use
+
+1. In Pathbuilder Web, use **Export → Export JSON**. Import the JSON file or paste its contents into settings.
+2. Review and correct actions, bonuses, traits, and damage; save the character.
+3. Open a Paizo post editor; Pathbridger activates automatically.
+4. Start `[dice=` (any capitalization) and type part of an action name, such as `[dice=exploit`. The `/action` shortcut also works. Choose with arrows and complete with Tab or Enter. Escape dismisses.
+
+Allow access to Paizo for editor features and to `elasticsearch.aonprd.com` for
+Nethys lookups; denied or revoked permissions can prevent these features from
+running. Character settings and buffs stay separate in each browser profile.
+
+## Build from source
+
+For development, use Node.js 18 or newer and run `node scripts/build.cjs`. This
+recreates both `dist/chrome` and `dist/firefox` from `extension/`. Reload the
+extension from its browser extension page and refresh open Paizo and Pathbuilder
+tabs after rebuilding.
 
 Both builds use Manifest V3 and shared source files. Firefox uses background scripts; Chrome uses a service worker. `api.js` selects the native browser API namespace. The build only copies `extension/`, keeping tests and private exports out of the packages. Before store publication, complete Firefox signing/data-collection declarations and each store’s listing requirements.
 
@@ -26,22 +67,24 @@ Both builds use Manifest V3 and shared source files. Firefox uses background scr
 - Imports Esoteric Lore and Exploit Vulnerability checks when the export supplies those abilities, level, Charisma score, and Esoteric Lore proficiency. These checks neither take nor increase MAP. Re-import and save older characters to get the new actions. Other class abilities still need manual configuration.
 - Completes explicitly configured attacks with Paizo dice markup, optional damage, and standard, agile, or custom MAP.
 - Each message is one turn. MAP is derived from completed attack rolls before the cursor, so deleting or inserting earlier attacks updates subsequent completions. Existing dice formulas are not rewritten. Configured action labels and explicit manual labels (Strike, Attack, Trip, Grapple, Shove, Disarm, Reposition, Escape, Spell attack) count. Prose mentions, damage, and quoted rolls do not. `mapIncreases: 0` marks a non-attack check; positive integers specify how many attacks a configured action contributes. This does not implement special multi-roll action resolution.
-- Stores one active character locally. Saving settings refreshes existing enhanced editors.
+- Stores a local character library and uses one selected character for Paizo
+  completions. Saving settings refreshes existing enhanced editors.
 - Preserves Paizo's normal submission process. Never submits posts itself.
 
 The importer accepts a `build` object or a top-level character object with `name` and `weapons`. It uses explicit numeric `attack` values, optional `traits`, and explicit `damage` strings. Exports may omit traits or damage; review is required. It does not infer feat effects, spell scaling, striking runes, conditional modifiers, or special action sequences. Additional actions can be entered in settings. The weapon export format is covered by a synthetic regression fixture. Hatchet traits have a small built-in fallback; other missing weapon traits require review. Damage can be assembled from die, striking tier, and damageBonus. Exported Empowerment becomes a separate conditional completion; it is never silently added to the base strike.
 
-## Planned Pathbuilder Web integration
+## Pathbuilder integration limits
 
-The intended everyday workflow is automatic refresh after character changes, rather than repeated JSON exports.
+Pathbuilder save observation and calculated-roll refresh are implemented for
+local and Google Drive saves made in the browser. The adapter is deliberately
+version-gated, maintains a separate record for each persistent save ID, and
+preserves manual action overrides where it can. JSON import remains available as
+a fallback.
 
-1. Inspect a real export and Pathbuilder Web's actual save/load behavior to establish a reliable adapter and stable character identity.
-2. Investigate a companion content script on Pathbuilder Web that obtains an explicit character snapshot when the user saves or switches characters. Prefer a supported API or export interface; any page-specific adapter needs version checks and a visible stale-data indicator.
-3. Keep snapshots per character and bind each Paizo campaign/editor to the right character. Display the source and last refreshed time. Handle edited local action overrides separately from upstream updates.
-4. Investigate Drive access only after confirming how Pathbuilder stores its files and what access is available. Do not assume another app's private Drive storage is accessible or that exported JSON is a writable backup format.
-5. Consumables require a verified inventory model and confirmed successful-post detection. Use a pending transaction keyed to the post, handle retries without double consumption, detect concurrent sheet changes, and offer recovery. A form submit event alone is not proof of a successful post.
-
-Pathbuilder save observation is implemented for local and Google Drive saves made in the browser. Inventory mutation and independent Google Drive access are not implemented. See **Pathbuilder save sync** below.
+Inventory mutation, post-success detection, consumable tracking, and independent
+Google Drive access are not implemented. This extension does not treat a form
+submit event as proof that a Paizo post succeeded. See **Pathbuilder save sync**
+below for version-specific behavior and recovery limits.
 
 ## Validation
 
@@ -89,19 +132,17 @@ Paizo page, then re-import your character with Nethys lookup enabled and save.
 
 1. Rebuild with `node scripts/build.cjs`, reload the extension, and reload any open
    Pathbuilder and Paizo tabs. Chrome 111+ or Firefox 128+ is required.
-2. In extension settings, select your existing character (or import and save a new
-   one). Existing single-character data is migrated without losing its actions.
-3. Save the matching character in Pathbuilder. In settings, click **Refresh detected
-   saves**, choose that save by name, location and ID, and click **Link selected save**.
-4. Save once more in Pathbuilder. Further successful saves update that linked
-   record, including after renaming. Copies with new IDs require a separate link.
-5. **Use on Paizo** selects which character supplies completions. Syncing an inactive
-   character does not change that selection.
+2. Save once in Pathbuilder. Pathbridger automatically creates a character linked
+   by its persistent save ID and refreshes supported calculated rolls immediately.
+3. Settings update automatically when there are no unsaved edits. The first
+   character becomes active on Paizo; **Use on Paizo** switches that selection.
+   Saving another character does not change your selection.
+4. JSON import is a collapsed fallback for unavailable sync. Existing manual
+   characters are preserved; names alone never cause an automatic merge.
 
 The observer watches successful local IndexedDB commits and successful Drive
 character uploads. It does not request Drive credentials, read authorization
-headers, publish JSON exports, or alter Pathbuilder saves. Only source metadata
-is retained for unlinked saves; up to 20 recent candidates are listed. Linked
+headers, publish JSON exports, or alter Pathbuilder saves. Synced
 records retain the latest complete internal save (up to 1.5 MB per save), available
 with **Download synced data**. Storage quota failures are reported on the page and
 leave the last good extension record intact.
@@ -141,3 +182,13 @@ concurrent writes, stale revisions, and sender validation.
 
 Browser injection uses the manifest's MAIN world, supported in
 [Firefox 128](https://blog.mozilla.org/addons/2024/07/10/manifest-v3-updates-landed-in-firefox-128/).
+
+### If saves or imports do not appear
+
+Reload the rebuilt extension (version 0.2.2), then close and reopen its settings.
+Settings now report a missing background/library before starting ability lookups.
+If **Enable Pathbuilder access** appears, click it and allow the requested site
+access. Reload Pathbuilder in the same browser/profile as the extension, save
+a character. It appears in settings automatically. The connection status reports
+whether the save observer started; **Refresh characters** is also available under
+advanced controls.

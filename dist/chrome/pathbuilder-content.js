@@ -1,4 +1,6 @@
 (() => {
+  let observerReady=false;
+  const reportConnection=()=>PathbridgerAPI.runtime.sendMessage({type:'pathbuilder-status',observerReady}).catch(()=>{});
   function show(text) {
     let status=document.getElementById('pathbridger-sync-status');
     if(!status) {
@@ -11,6 +13,7 @@
   window.addEventListener('message',async event=>{
     if(event.source!==window||event.origin!==location.origin)return;
     const channel=event.data?.channel;
+    if(channel==='pathbridger-observer-ready-v1'){observerReady=true;reportConnection();return;}
     if(!['pathbridger-save-v1','pathbridger-export-result-v1'].includes(channel))return;
     try {
       const message=channel==='pathbridger-save-v1' ? {type:'pathbuilder-save',snapshot:PathbridgerCharacters.snapshot(event.data.snapshot)} : {...event.data,type:'pathbuilder-export'};
@@ -26,4 +29,6 @@
       else if(response.result!=='ignored')show('Character data synced.');
     }catch(error){show(error.message);}
   });
+  window.postMessage({channel:'pathbridger-observer-ping-v1'},location.origin);
+  setTimeout(()=>{reportConnection();if(!observerReady)show('Save detection did not start. Reload the extension and this Pathbuilder tab.');},3000);
 })();

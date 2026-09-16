@@ -9,7 +9,7 @@ const source=(saveId='file-A',mode='gdrive')=>({mode,scope:mode==='local'?'pathb
 const snapshot=(name='Hero',saveId='file-A',startedAt=1,mode='gdrive')=>sync.snapshot({source:source(saveId,mode),startedAt,payload:JSON.stringify(mode==='gdrive'?{characterData:{characterName:name,listPlayerWeapons:[]}}:{characterName:name,listPlayerWeapons:[]})});
 function linked() {
  const library=sync.migrate({character:{name:'Hero',actions:[action]}},()=> 'a');
- sync.applySave(library,snapshot(),10);
+ library.candidates.push({...snapshot(),seenAt:10});
  sync.mutate(library,{type:'link',id:'a',source:source()},core);
  return library;
 }
@@ -18,9 +18,9 @@ test('migrate single character once without losing manual actions',()=>{
  assert.equal(l.activeId,'a');assert.deepEqual(l.records[0].actions,[action]);
  assert.equal(sync.migrate({characterLibrary:l},()=>{throw Error('must not migrate again');}),l);
 });
-test('unknown saves and duplicate names never replace or auto-link a character',()=>{
+test('unknown saves automatically create distinct records even with duplicate names',()=>{
  const l=linked();sync.applySave(l,snapshot('Hero','file-B'),20);
- assert.equal(l.records[0].lastSave,undefined);assert.equal(l.candidates.length,1);
+ assert.equal(l.records[0].lastSave,undefined);assert.equal(l.records.length,2);assert.equal(l.records[1].source.saveId,'file-B');assert.equal(l.records[1].lastSave.startedAt,1);
  assert.equal(l.activeId,'a');assert.equal(l.records[0].source.saveId,'file-A');
 });
 test('rename updates linked data; custom actions and active selection survive',()=>{
@@ -36,7 +36,7 @@ test('older saves cannot replace newer snapshots, including after serialization'
 });
 test('same local and cloud IDs are different sources',()=>{
  const l=linked();sync.applySave(l,snapshot('Local','file-A',5,'local'),50);
- assert.equal(l.records[0].lastSave,undefined);assert.equal(l.candidates[0].source.mode,'local');
+ assert.equal(l.records[0].lastSave,undefined);assert.equal(l.records[1].source.mode,'local');
 });
 test('invalid, oversized and unknown schema messages are rejected',()=>{
  const s=snapshot();
@@ -67,7 +67,7 @@ function observer() {
  const events=[];let tick=0;
  class Store {constructor(db='pathbuilder2e_db',name='saves'){this.name=name;this.transaction=new EventTarget();this.transaction.db={name:db};}put(...args){this.args=args;return this.result={};}}
  class XHR extends EventTarget {open(method,url){this.url=url;}send(body){this.body=body;if(this.fail)throw Error('send failed');}finish(status){this.status=status;this.dispatchEvent(new Event('load'));}}
- const context={IDBObjectStore:Store,XMLHttpRequest:XHR,URL,WeakMap,performance:{timeOrigin:1000,now:()=>++tick},location:{origin:'https://pathbuilder2e.com',href:'https://pathbuilder2e.com/app.html'},window:{postMessage:message=>events.push(message)}};
+ const context={IDBObjectStore:Store,XMLHttpRequest:XHR,URL,WeakMap,performance:{timeOrigin:1000,now:()=>++tick},location:{origin:'https://pathbuilder2e.com',href:'https://pathbuilder2e.com/app.html'},window:{postMessage:message=>{if(message.snapshot)events.push(message);}}};
  vm.runInNewContext(fs.readFileSync('extension/pathbuilder-observer.js','utf8'),context);
  return {Store,XHR,events};
 }
@@ -110,8 +110,7 @@ function background(initial={}) {
 test('background serializes simultaneous writes and never exposes the library to a page',async()=>{
  const b=background({character:{name:'Hero',actions:[action]},buffs:[{name:'untouched'}]});
  const first=await b.request({type:'library'}),id=first.library.activeId;
- await b.request({type:'pathbuilder-save',snapshot:snapshot()},b.content);
- await b.request({type:'link',id,source:source()});
+ b.state.characterLibrary.records.find(c=>c.id===id).source=source();
  const responses=await Promise.all([b.request({type:'pathbuilder-save',snapshot:snapshot('Renamed','file-A',20)},b.content),b.request({type:'edit',name:'Other',actions:[]})]);
  assert.equal(responses[0].library,undefined);assert.equal(b.state.characterLibrary.records.length,2);
  assert.equal(b.state.characterLibrary.records.find(c=>c.id===id).name,'Renamed');
@@ -127,4 +126,24 @@ test('storage failure reports an error, retains old data, and does not poison th
  const b=background();await b.request({type:'library'});b.fail=true;
  const result=await b.request({type:'edit',name:'Fail',actions:[]});assert.match(result.error,/quota/);assert.equal(b.state.characterLibrary.records.length,0);
  b.fail=false;await b.request({type:'edit',name:'Success',actions:[]});assert.equal(b.state.character.name,'Success');
+});
+test('options opened in a Firefox tab may read and write the character library',async()=>{
+ const b=background(),sender={...b.options,tab:{id:7},frameId:0};
+ const response=await b.request({type:'library'},sender);assert.equal(response.library.version,1);
+ await b.request({type:'edit',name:'Firefox tab character',actions:[]},sender);assert.equal(b.state.character.name,'Firefox tab character');
+ const withFragment={...sender,url:sender.url+'?section=characters#sync'};
+ assert.equal((await b.request({type:'library'},withFragment)).library.records.length,1);
+ assert.equal(await b.request({type:'library'},{...sender,url:'moz-extension://other/options.html'}),undefined);
+});
+
+test('first save creates an active character and immediately requests calculated export',async()=>{
+ const b=background();
+ const response=await b.request({type:'pathbuilder-save',snapshot:snapshot()},b.content);
+ assert.equal(response.requestExport,true);assert.equal(response.library,undefined);
+ const l=b.state.characterLibrary;assert.equal(l.records.length,1);assert.equal(l.activeId,l.records[0].id);
+ assert.equal(l.records[0].lastSave.startedAt,1);
+ await b.request({type:'pathbuilder-save',snapshot:snapshot('Renamed','file-A',2)},b.content);
+ assert.equal(b.state.characterLibrary.records.length,1);assert.equal(b.state.character.name,'Renamed');
+ await b.request({type:'pathbuilder-save',snapshot:snapshot('Renamed','file-B',3)},b.content);
+ assert.equal(b.state.characterLibrary.records.length,2);assert.equal(b.state.characterLibrary.activeId,l.activeId);
 });

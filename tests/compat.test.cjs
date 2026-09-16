@@ -37,7 +37,7 @@ test('both packages have complete assets, correct manifests and adapter load ord
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json')));
     assert.equal(manifest.manifest_version, 3);
     assert.deepEqual(manifest.permissions, ['storage']);
-    assert.deepEqual(manifest.host_permissions, ['https://elasticsearch.aonprd.com/*']);
+    assert.deepEqual(manifest.host_permissions, ['https://elasticsearch.aonprd.com/*', 'https://pathbuilder2e.com/*']);
     assert.ok(manifest.action);
     assert.equal(manifest.browser_action, undefined);
     if (browser === 'chrome') {

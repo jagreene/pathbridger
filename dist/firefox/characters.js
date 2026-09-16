@@ -30,19 +30,16 @@
     if (!found) throw Error('Character no longer exists. Reload settings.');
     return found;
   }
-  function applySave(library, incoming, now) {
+  function applySave(library, incoming, now, uuid = () => crypto.randomUUID()) {
     const key = sourceKey(incoming.source);
-    const linked = library.records.find(c => c.source && sourceKey(c.source) === key);
+    let linked = library.records.find(c => c.source && sourceKey(c.source) === key);
     if (!linked) {
-      // Unknown saves are selectable suggestions, never implicit replacements.
-      const old = library.candidates.find(c => sourceKey(c.source) === key);
-      if (old && old.startedAt >= incoming.startedAt) return 'ignored';
-      library.candidates = library.candidates.filter(c => sourceKey(c.source) !== key);
-      // Keep metadata only until the user explicitly links a source.
-      library.candidates.unshift({source:incoming.source, name:incoming.name, startedAt:incoming.startedAt, seenAt:now});
-      library.candidates = library.candidates.slice(0,20);
-      return 'unlinked';
+      if (library.records.length >= 50) throw Error('Maximum 50 saved characters.');
+      linked = {id:uuid(), name:incoming.name, source:incoming.source, actions:[], generatedActions:[], revision:0};
+      library.records.push(linked);
+      if (!library.activeId) library.activeId = linked.id;
     }
+    library.candidates = library.candidates.filter(c => sourceKey(c.source) !== key);
     if (linked.lastSave?.startedAt >= incoming.startedAt) return 'ignored';
     const changed = linked.lastSave?.payload !== incoming.payload;
     linked.lastSave = {...incoming, savedAt:now};

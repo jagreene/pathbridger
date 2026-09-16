@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Pathbridger",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Paizo forum highlighting and Pathbuilder-informed dice completion.",
+  "icons": {
+    "16": "icons/pathbridger-16.png",
+    "32": "icons/pathbridger-32.png",
+    "48": "icons/pathbridger-48.png",
+    "128": "icons/pathbridger-128.png"
+  },
   "permissions": [
     "storage"
   ],
@@ -56,9 +62,14 @@
     "service_worker": "background.js"
   },
   "host_permissions": [
-    "https://elasticsearch.aonprd.com/*"
+    "https://elasticsearch.aonprd.com/*",
+    "https://pathbuilder2e.com/*"
   ],
   "action": {
+    "default_icon": {
+      "16": "icons/pathbridger-16.png",
+      "32": "icons/pathbridger-32.png"
+    },
     "default_title": "Pathbridger character settings"
   },
   "minimum_chrome_version": "111"
