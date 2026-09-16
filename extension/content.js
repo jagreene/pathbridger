@@ -33,6 +33,10 @@
     const buffSummary = document.createElement('summary'); buffSummary.textContent='Buffs (0)';
     const buffChoices = document.createElement('div'); buffChoices.className='pb-buff-choices';
     buffMenu.append(buffSummary,buffChoices);
+    const closeBuffMenu = event => {
+      if(buffMenu.open && !buffMenu.contains(event.target)) buffMenu.open=false;
+    };
+    document.addEventListener('click',closeBuffMenu);
     const activeBuffs = new Set();
     let buffVersion = null;
     function selectedBuffs() {return buffs.filter(b=>activeBuffs.has(b.id));}
@@ -132,7 +136,7 @@
       menu.style.top = `${Math.max(8,below+actual <= innerHeight-8 ? below : y-actual-5)}px`;
     }
     function update() {
-      if(!t.isConnected) {editors.delete(update); observer.disconnect(); menu.remove(); mirror.remove(); window.removeEventListener('scroll', onViewport, true); window.removeEventListener('resize', onViewport); return;}
+      if(!t.isConnected) {editors.delete(update); observer.disconnect(); menu.remove(); mirror.remove(); document.removeEventListener('click',closeBuffMenu); window.removeEventListener('scroll', onViewport, true); window.removeEventListener('resize', onViewport); return;}
       renderBuffs();
       title.textContent = character?.name ? character.name + (character.actionsNeedReview ? ' — actions need review in settings' : '') : 'Import a character in extension settings';
       const selectedId=character?.id || activeCharacterId;

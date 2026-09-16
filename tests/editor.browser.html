@@ -44,6 +44,9 @@ check(t.value.slice(t.selectionStart,t.selectionEnd)==='After','buff rewrite pre
 check(p.textContent.includes('1d20+9 + 1') && buffInputEvents===1,'buff rewrite refreshes highlighting and emits input');
 buffCheckbox.checked=false;buffCheckbox.dispatchEvent(new Event('change'));
 check(t.value===originalBuffText,'disabling buff restores draft formulas');
+const buffMenu=document.querySelector('.pb-buffs');
+buffMenu.open=true;document.body.click();
+check(!buffMenu.open,'clicking outside the buff menu closes it');
 document.querySelector('#results').textContent=results.join(' | ');
 document.querySelector('#results').style.color=results.some(s=>s.startsWith('FAIL'))?'red':'green';
 </script>
