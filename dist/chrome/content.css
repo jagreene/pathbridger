@@ -16,6 +16,7 @@ body > .pb-menu button { white-space:normal!important; overflow-wrap:anywhere!im
 body > .pb-caret-mirror { position:fixed!important; top:0!important; left:0!important; visibility:hidden!important; pointer-events:none!important; box-sizing:border-box!important; margin:0!important; border-style:solid!important; white-space:pre-wrap!important; overflow-wrap:break-word!important; word-break:normal!important; }
 
 .pb-buffs { position:relative; font:13px system-ui; }
+.pb-character-picker { max-width:220px; }
 .pb-buffs summary { cursor:pointer; padding:7px; border:1px solid #a8bdb1; border-radius:5px; background:#fff; }
 .pb-buff-choices { position:absolute; top:100%; right:0; width:320px; max-height:260px; overflow:auto; background:white; color:#244b39; border:1px solid #a8bdb1; padding:8px; box-shadow:0 6px 20px #0002; z-index:10; }
 .pb-buff-choices label { display:flex; align-items:start; gap:8px; padding:8px; font:13px/1.4 system-ui; }

@@ -16,11 +16,14 @@ PathbridgerAPI.runtime.onMessage.addListener((message, sender, respond) => {
     options=sender.id===PathbridgerAPI.runtime.id && actual.protocol===expected.protocol && actual.host===expected.host && actual.pathname===expected.pathname;
   }catch(_){}
   let pathbuilder = false;
+  let paizo = false;
   try {
     const url = new URL(sender.url);
     pathbuilder = sender.id === PathbridgerAPI.runtime.id && sender.tab && sender.frameId === 0 && url.origin === 'https://pathbuilder2e.com' && url.pathname === '/app.html';
+    paizo = sender.id === PathbridgerAPI.runtime.id && sender.tab && sender.frameId === 0 && ['https://paizo.com','https://www.paizo.com'].includes(url.origin);
   } catch (_) {}
-  if (!(options && ['library','select','edit','delete','link','unlink'].includes(message?.type)) && !(pathbuilder && ['pathbuilder-save','pathbuilder-export','pathbuilder-status'].includes(message?.type))) return;
+  const characterPicker = paizo && ['characters','select'].includes(message?.type);
+  if (!(options && ['library','select','edit','delete','link','unlink'].includes(message?.type)) && !characterPicker && !(pathbuilder && ['pathbuilder-save','pathbuilder-export','pathbuilder-status'].includes(message?.type))) return;
   enqueue(async () => {
     if(message.type==='pathbuilder-status') {
       await PathbridgerAPI.storage.local.set({pathbuilderConnection:{observerReady:message.observerReady===true,seenAt:Date.now()}});
@@ -31,6 +34,7 @@ PathbridgerAPI.runtime.onMessage.addListener((message, sender, respond) => {
     let result;
     if (message.type === 'pathbuilder-save') result = PathbridgerCharacters.applySave(library, PathbridgerCharacters.snapshot(message.snapshot), Date.now());
     else if(message.type==='pathbuilder-export') result=PathbridgerCharacters.applyExport(library,message,Pathbridger,PathbridgerRules,PathbridgerExportData,state.rulesCache||{},Date.now());
+    else if(message.type==='characters') result={activeId:library.activeId,records:library.records.map(({id,name})=>({id,name}))};
     else if (message.type !== 'library') result = PathbridgerCharacters.mutate(library, message, Pathbridger, () => crypto.randomUUID());
     if(message.type !== 'library' || !state.characterLibrary) await PathbridgerAPI.storage.local.set({characterLibrary:library, character:PathbridgerCharacters.projection(library)});
     // Page content scripts never receive the library or unrelated characters.

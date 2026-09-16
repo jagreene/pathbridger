@@ -1,11 +1,21 @@
 (() => {
-  let character = null;
+  let character = null, characterChoices = [], activeCharacterId = null;
   let buffs = PathbridgerBuffs.defaults;
   const editors = new Set();
   PathbridgerAPI.storage.local.get(['character','buffs']).then(result => {character = result.character; buffs = result.buffs ?? PathbridgerBuffs.defaults; editors.forEach(fn => fn());});
+  async function loadCharacterChoices() {
+    if(!PathbridgerAPI.runtime?.sendMessage) return;
+    try {
+      const response=await PathbridgerAPI.runtime.sendMessage({type:'characters'});
+      if(!response?.result || !Array.isArray(response.result.records)) return;
+      characterChoices=response.result.records;activeCharacterId=response.result.activeId;editors.forEach(fn=>fn());
+    } catch (_) {}
+  }
+  loadCharacterChoices();
   PathbridgerAPI.storage.onChanged.addListener((changes, area) => {
     if(area === 'local' && changes.buffs) {buffs = changes.buffs.newValue ?? PathbridgerBuffs.defaults; editors.forEach(fn=>fn());}
     if(area === 'local' && changes.character) { character = changes.character.newValue; editors.forEach(fn => fn()); }
+    if(area === 'local' && changes.characterLibrary) loadCharacterChoices();
   });
   function offer(textarea) {
     if(textarea.dataset.pathbridger || textarea.readOnly || textarea.disabled) return;
@@ -17,6 +27,7 @@
     const panel = document.createElement('div'); panel.className = 'pb-panel';
     const title = document.createElement('span');
     const stage = document.createElement('span'); stage.setAttribute('aria-live','polite');
+    const characterPicker = document.createElement('select'); characterPicker.className='pb-character-picker'; characterPicker.setAttribute('aria-label','Use character on Paizo');
     const toggle = document.createElement('button'); toggle.type = 'button'; toggle.textContent = 'Enable highlighting';
     const buffMenu = document.createElement('details'); buffMenu.className='pb-buffs';
     const buffSummary = document.createElement('summary'); buffSummary.textContent='Buffs (0)';
@@ -32,16 +43,27 @@
         for(const id of activeBuffs) if(!buffs.some(b=>b.id===id)) activeBuffs.delete(id);
         for(const buff of buffs) {
           const row=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.checked=activeBuffs.has(buff.id);
-          input.addEventListener('change',()=>{if(input.checked) activeBuffs.add(buff.id);else activeBuffs.delete(buff.id);update();});
+          input.addEventListener('change',()=>{
+            const previous=selectedBuffs();
+            if(input.checked) activeBuffs.add(buff.id);else activeBuffs.delete(buff.id);
+            const edits=PathbridgerBuffs.edits(t.value,character?.actions || [],previous,selectedBuffs());
+            const mapPosition=position=>edits.reduce((mapped,edit)=>mapped+(position>=edit.end ? edit.text.length-(edit.end-edit.start) : position>edit.start ? Math.min(position-edit.start,edit.text.length)-(position-edit.start) : 0),position);
+            const start=mapPosition(t.selectionStart),end=mapPosition(t.selectionEnd),direction=t.selectionDirection;
+            const top=t.scrollTop,left=t.scrollLeft;
+            for(const edit of edits.reverse()) t.setRangeText(edit.text,edit.start,edit.end,'preserve');
+            t.setSelectionRange(start,end,direction);t.scrollTop=top;t.scrollLeft=left;
+            if(edits.length) t.dispatchEvent(new Event('input',{bubbles:true}));
+            else update();
+          });
           row.append(input,document.createTextNode(`${buff.name} (+${buff.attack} attack, +${buff.damage} damage, +${buff.checks} checks; ${buff.type})`));buffChoices.append(row);
         }
         if(!buffs.length) buffChoices.textContent='Add buffs in extension settings.';
       }
       const totals=PathbridgerBuffs.totals(selectedBuffs());
       buffSummary.textContent=`Buffs (${selectedBuffs().length})`;
-      buffSummary.title=`Effective bonuses: +${totals.attack} attack, +${totals.damage} damage, +${totals.checks} checks. New completions only.`;
+      buffSummary.title=`Effective bonuses: +${totals.attack} attack, +${totals.damage} damage, +${totals.checks} checks. Updates matching rolls in this draft.`;
     }
-    panel.append(title,stage,buffMenu,toggle); t.before(panel);
+    panel.append(title,stage,characterPicker,buffMenu,toggle); t.before(panel);
     const shell = document.createElement('div'); shell.className = 'pb-shell'; t.before(shell);
     const pre = document.createElement('pre'); pre.className = 'pb-highlight'; pre.setAttribute('aria-hidden','true');
     shell.append(pre,t); t.classList.add('pb-input', 'pb-plain'); pre.hidden = true;
@@ -113,6 +135,13 @@
       if(!t.isConnected) {editors.delete(update); observer.disconnect(); menu.remove(); mirror.remove(); window.removeEventListener('scroll', onViewport, true); window.removeEventListener('resize', onViewport); return;}
       renderBuffs();
       title.textContent = character?.name ? character.name + (character.actionsNeedReview ? ' — actions need review in settings' : '') : 'Import a character in extension settings';
+      const selectedId=character?.id || activeCharacterId;
+      const pickerVersion=JSON.stringify([selectedId,characterChoices]);
+      if(characterPicker.dataset.version !== pickerVersion) {
+        characterPicker.replaceChildren(new Option('No character selected', ''));
+        for(const choice of characterChoices) characterPicker.add(new Option(choice.name,choice.id));
+        characterPicker.value=selectedId || '';characterPicker.disabled=!characterChoices.length;characterPicker.dataset.version=pickerVersion;
+      }
       renderHighlighting();
       pre.scrollTop = t.scrollTop; pre.scrollLeft = t.scrollLeft;
       const count = Pathbridger.attackCount(t.value, character?.actions || [], t.selectionStart);
@@ -134,6 +163,13 @@
       const active = menu.children[selected];
       if(active && !menu.hidden) { if(active.offsetTop < menu.scrollTop) menu.scrollTop = active.offsetTop; else if(active.offsetTop+active.offsetHeight > menu.scrollTop+menu.clientHeight) menu.scrollTop = active.offsetTop+active.offsetHeight-menu.clientHeight; }
     }
+    characterPicker.addEventListener('change', async () => {
+      try {
+        const id=characterPicker.value || null,response=await PathbridgerAPI.runtime.sendMessage({type:'select',id});
+        if(!response || response.error) throw Error('Character selection could not be updated.');
+        activeCharacterId=id;update();
+      } catch (_) { characterPicker.value=character?.id || activeCharacterId || ''; }
+    });
     function onViewport(event) { if(event && menu.contains(event.target)) return; if(document.activeElement === t) update(); else menu.hidden = true; }
     window.addEventListener('scroll', onViewport, true);
     window.addEventListener('resize', onViewport);

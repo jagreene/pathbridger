@@ -26,7 +26,7 @@
  el('name').value='Edited Hero';el('name').dispatchEvent(new Event('input'));el('save').click();await pause();check(library.records[0].name==='Edited Hero','save edit');
  el('characters').value='';el('characters').dispatchEvent(new Event('change'));check(el('name').value==='','new character form');
  el('name').value='Other';el('actions').value='[]';el('save').click();await pause();check(library.records.length===2,'create second character');
- el('characters').value='hero';el('characters').dispatchEvent(new Event('change'));el('activate').click();await pause();check(library.activeId==='hero','set active character');
+ el('characters').value='hero';el('characters').dispatchEvent(new Event('change'));await pause();check(library.activeId==='hero','set active character');
  el('unlink-save').click();await pause();check(!library.records[0].source,'unlink character');
  const c=library.records[0];c.generatedActions=[{name:'Custom action',attack:19}];c.actions.push({name:'Unique action',attack:3});c.lastSave={startedAt:1,savedAt:Date.now()};c.calculatedFor=1;c.revision++;
  el('reload-character').click();await pause();el('use-calculated').click();el('save').click();await pause();
@@ -37,6 +37,6 @@
  el('import').click();await pause();
  check(lookups===1 && el('status').textContent.includes('Imported for review'),'manual import after ability lookups');
  el('save').click();await pause();check(library.records.find(c=>c.id==='hero').name==='Imported Hero','save manual import');
- el('test-result').textContent='PASS — options: load, link, edit, create, select, activate, unlink, adopt calculated rolls, manual import after lookups';
+ el('test-result').textContent='PASS — options: load, link, edit, create, select active, unlink, adopt calculated rolls, manual import after lookups';
 })().catch(error=>{document.getElementById('test-result').textContent='FAIL — '+error.stack;});
 </script></body></html>

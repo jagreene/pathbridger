@@ -25,8 +25,39 @@
   function apply(action,buffs) {
     if(action.kind==='reference') return {...action};
     const bonus=totals(buffs), result={...action};
-    if(Number.isFinite(action.attack)) result.attack += action.mapIncreases === 0 ? bonus.checks : bonus.attack;
-    if(action.damage && bonus.damage) result.damage = `${action.damage}+${bonus.damage}`;
+    if(Number.isFinite(action.attack)) result.buffBonus = action.mapIncreases === 0 ? bonus.checks : bonus.attack;
+    if(action.damage && bonus.damage) result.damage = `${action.damage} + ${bonus.damage}`;
+    return result;
+  }
+  // Match known formulas, rather than guessing at arbitrary hand-edited rolls.
+  // Keep the original MAP stage even if earlier attacks have since been removed.
+  function edits(text, actions, previous, next, core=root.Pathbridger) {
+    const normalize = value => value.replace(/\s+/g,'').toLowerCase();
+    const dice = /\[dice=([^\]\n]*)\]([^[]*)\[\/dice\]/gi;
+    const replacements = new Map();
+    for(const action of actions) for(const stage of [0,1,2]) {
+      const before = [...core.roll(apply(action,previous),stage).matchAll(dice)];
+      const after = [...core.roll(apply(action,next),stage).matchAll(dice)];
+      before.forEach((match,index) => {
+        const key=normalize(match[1])+'|'+normalize(match[2]);
+        const value=after[index][2];
+        // Ambiguous duplicate action names must not silently choose a formula.
+        if(replacements.has(key) && replacements.get(key)!==value) replacements.set(key,null);
+        else if(!replacements.has(key)) replacements.set(key,value);
+      });
+    }
+    const result=[];
+    let depth=0;
+    const tokens=/\[quote(?:=[^\]]*)?\]|\[\/quote\]|\[dice=([^\]\n]*)\]([^[]*)\[\/dice\]/gi;
+    for(const match of text.matchAll(tokens)) {
+      if(/^\[quote/i.test(match[0])) {depth++;continue;}
+      if(/^\[\/quote/i.test(match[0])) {depth=Math.max(0,depth-1);continue;}
+      if(depth) continue;
+      const value=replacements.get(normalize(match[1])+'|'+normalize(match[2]));
+      if(value==null || normalize(value)===normalize(match[2])) continue;
+      const start=match.index+match[0].indexOf(']')+1;
+      result.push({start,end:start+match[2].length,text:value});
+    }
     return result;
   }
   async function fromURL(value,fetcher=fetch) {
@@ -47,6 +78,6 @@
     return {id:source.id,name:record.name,source:source.url,type:'status',attack,damage,checks,
       note:courage||bless||heroism ? 'Base-rank bonuses filled. Adjust for heightened/fortissimo effects. Defensive and conditional effects remain manual.' : 'Review the linked rules and enter applicable bonuses. No effects were inferred.'};
   }
-  const api={defaults,link,validate,totals,apply,fromURL};root.PathbridgerBuffs=api;
+  const api={defaults,link,validate,totals,apply,edits,fromURL};root.PathbridgerBuffs=api;
   if(typeof module!=='undefined') module.exports=api;
 })(globalThis);

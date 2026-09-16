@@ -132,7 +132,7 @@
     if (a.kind === 'save') return `[ooc]${label(actionName(a))}: DC ${a.dc} ${a.save}[/ooc] [dice=${label(actionName(a))} damage]${a.damage}[/dice]`;
     const penalties = a.map || (a.agile ? [-4, -8] : [-5, -10]);
     const penalty = a.mapIncreases === 0 || stage <= 0 ? 0 : penalties[Math.min(2, stage) - 1];
-    return `[dice=${label(actionName(a))}]1d20${signed(a.attack + penalty)}[/dice]` + (a.damage ? `\n[dice=${label(actionName(a))} damage]${a.damage}[/dice]` : '');
+    return `[dice=${label(actionName(a))}]1d20${signed(a.attack + penalty)}${a.buffBonus ? ` + ${a.buffBonus}` : ''}[/dice]` + (a.damage ? `\n[dice=${label(actionName(a))} damage]${a.damage}[/dice]` : '');
   }
   const api = {tags, escape, highlight, normalize, validateActions, attackCount, completionContext, closeTagEdit, actionName, roll};
   root.Pathbridger = api;

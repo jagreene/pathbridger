@@ -21,14 +21,14 @@ test('migrate single character once without losing manual actions',()=>{
 test('unknown saves automatically create distinct records even with duplicate names',()=>{
  const l=linked();sync.applySave(l,snapshot('Hero','file-B'),20);
  assert.equal(l.records[0].lastSave,undefined);assert.equal(l.records.length,2);assert.equal(l.records[1].source.saveId,'file-B');assert.equal(l.records[1].lastSave.startedAt,1);
- assert.equal(l.activeId,'a');assert.equal(l.records[0].source.saveId,'file-A');
+ assert.equal(l.activeId,l.records[1].id);assert.equal(l.records[0].source.saveId,'file-A');
 });
 test('rename updates linked data; custom actions and active selection survive',()=>{
  const l=linked();sync.mutate(l,{type:'edit',name:'Other',actions:[],id:null},core,()=> 'b');
  sync.applySave(l,snapshot('Renamed','file-A',3),30);
  assert.equal(l.records[0].name,'Renamed');assert.deepEqual(l.records[0].actions,[action]);
- assert.equal(l.records[0].actionsNeedReview,true);assert.equal(l.activeId,'b');
- assert.equal(sync.projection(l).name,'Other');assert.equal(JSON.parse(l.records[0].lastSave.payload).characterData.characterName,'Renamed');
+ assert.equal(l.records[0].actionsNeedReview,true);assert.equal(l.activeId,'a');
+ assert.equal(sync.projection(l).name,'Renamed');assert.equal(JSON.parse(l.records[0].lastSave.payload).characterData.characterName,'Renamed');
 });
 test('older saves cannot replace newer snapshots, including after serialization',()=>{
  let l=linked();sync.applySave(l,snapshot('New','file-A',30),30);
@@ -105,7 +105,8 @@ function background(initial={}) {
  for(const file of ['api.js','core.js','rules.js','export-data.js','characters.js','background.js'])vm.runInContext(fs.readFileSync('extension/'+file,'utf8'),context);
  const options={id:'test',url:'moz-extension://test/options.html'};
  const content={id:'test',url:'https://pathbuilder2e.com/app.html?v=109g',tab:{id:1},frameId:0};
- return {get state(){return state;},set fail(value){fail=value;},options,content,request:(message,sender=options)=>new Promise(resolve=>{const handled=listener(message,sender,resolve);if(!handled)resolve(undefined);})};
+ const paizo={id:'test',url:'https://paizo.com/community',tab:{id:2},frameId:0};
+ return {get state(){return state;},set fail(value){fail=value;},options,content,paizo,request:(message,sender=options)=>new Promise(resolve=>{const handled=listener(message,sender,resolve);if(!handled)resolve(undefined);})};
 }
 test('background serializes simultaneous writes and never exposes the library to a page',async()=>{
  const b=background({character:{name:'Hero',actions:[action]},buffs:[{name:'untouched'}]});
@@ -121,6 +122,13 @@ test('background rejects wrong origin, iframe and page attempts to edit/link or 
  for(const sender of [{...b.content,url:'https://evil.test/app.html'},{...b.content,frameId:1},{...b.content,id:'different'}])assert.equal(await b.request({type:'pathbuilder-save',snapshot:snapshot()},sender),undefined);
  for(const type of ['library','edit','link','delete'])assert.equal(await b.request({type},b.content),undefined);
  assert.equal(b.state.characterLibrary,undefined);
+});
+test('Paizo picker can list names and switch the active character without receiving actions',async()=>{
+ const b=background({character:{name:'Hero',actions:[action]}}),first=await b.request({type:'library'}),id=first.library.activeId;
+ await b.request({type:'edit',name:'Other',actions:[]});
+ const listed=await b.request({type:'characters'},b.paizo);
+ assert.deepEqual(listed.result.records.map(c=>c.name),['Hero','Other']);assert.equal(listed.result.records[0].id,id);assert.equal(listed.result.records[0].actions,undefined);
+ await b.request({type:'select',id},b.paizo);assert.equal(b.state.characterLibrary.activeId,id);
 });
 test('storage failure reports an error, retains old data, and does not poison the queue',async()=>{
  const b=background();await b.request({type:'library'});b.fail=true;
@@ -145,5 +153,5 @@ test('first save creates an active character and immediately requests calculated
  await b.request({type:'pathbuilder-save',snapshot:snapshot('Renamed','file-A',2)},b.content);
  assert.equal(b.state.characterLibrary.records.length,1);assert.equal(b.state.character.name,'Renamed');
  await b.request({type:'pathbuilder-save',snapshot:snapshot('Renamed','file-B',3)},b.content);
- assert.equal(b.state.characterLibrary.records.length,2);assert.equal(b.state.characterLibrary.activeId,l.activeId);
+ assert.equal(b.state.characterLibrary.records.length,2);assert.equal(b.state.characterLibrary.activeId,b.state.characterLibrary.records[1].id);
 });

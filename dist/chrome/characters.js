@@ -44,6 +44,9 @@
     const changed = linked.lastSave?.payload !== incoming.payload;
     linked.lastSave = {...incoming, savedAt:now};
     linked.name = incoming.name;
+    // A successful Pathbuilder save is the clearest signal of the character
+    // the player is currently using, so make it immediately available on Paizo.
+    library.activeId = linked.id;
     if (changed) linked.actionsNeedReview = true;
     linked.revision++;
     linked.pendingExportRevision=linked.revision;

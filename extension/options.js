@@ -12,7 +12,7 @@ async function command(message) {
   return response;
 }
 function setReady(ready) {
-  for(const id of ['import','save','characters','activate','clear','link-save','unlink-save','download-save','use-calculated'])$(id).disabled=!ready;
+  for(const id of ['import','save','characters','clear','link-save','unlink-save','download-save','use-calculated'])$(id).disabled=!ready;
 }
 setReady(false);
 function renderConnection(connection) {
@@ -34,7 +34,7 @@ $('enable-pathbuilder').onclick=async()=>{
 checkAccess().catch(()=>{});
 function renderList() {
   $('characters').replaceChildren(new Option('New manual character', ''));
-  for (const c of library.records) $('characters').add(new Option(`${c.name}${c.id === library.activeId ? ' (active on Paizo)' : ''}`, c.id));
+  for (const c of library.records) $('characters').add(new Option(c.name, c.id));
   $('characters').value = currentId || '';
   $('save-sources').replaceChildren(new Option('Choose a detected Pathbuilder save', ''));
   for (const [index,c] of library.candidates.entries()) $('save-sources').add(new Option(`${c.name} — ${c.source.mode} — ${c.source.saveId}`, String(index)));
@@ -48,22 +48,26 @@ function showCharacter(id) {
   $('source').value = ''; $('file').value = ''; $('warnings').textContent = '';
   $('sync-status').textContent = c?.source ? `Linked to ${c.source.mode} save ${c.source.saveId}. ${c.lastSave ? 'Last synced: '+new Date(c.lastSave.savedAt).toLocaleString()+'.' : 'Save again in Pathbuilder to sync its data.'} ${c.actionsNeedReview ? [c.syncError,...(c.syncWarnings||[]),'Actions need review; custom edits have been kept.'].filter(Boolean).join(' ') : ''}` : 'Manual character. Saving in Pathbuilder automatically adds a separate synced character; existing manual actions are kept.';
   $('use-calculated').disabled=!c?.lastSave || c.calculatedFor!==c.lastSave.startedAt || !c.generatedActions;
-  $('activate').disabled = !c; $('clear').disabled = !c; $('link-save').disabled = !c; $('unlink-save').disabled = !c?.source; $('download-save').disabled = !c?.lastSave;
+  $('clear').disabled = !c; $('link-save').disabled = !c; $('unlink-save').disabled = !c?.source; $('download-save').disabled = !c?.lastSave;
   renderList();
 }
 async function load(id) { await command({type:'library'}); showCharacter(id === undefined ? library.activeId : id); }
 const report = error => $('status').textContent = error.message;
 load().catch(error=>{setReady(false);report(error);});
 for (const id of ['name','actions','source']) $(id).addEventListener('input',()=>{dirty=true;});
-$('characters').onchange = () => {
+$('characters').onchange = async () => {
   if (dirty) { $('characters').value=currentId || ''; $('status').textContent='Save your edits or click Reload before switching characters.'; return; }
-  showCharacter($('characters').value);
+  try {
+    const id=$('characters').value || null;
+    await command({type:'select',id});
+    showCharacter(id);
+    $('status').textContent=id ? 'Active character updated in Paizo editors.' : 'No character is active on Paizo.';
+  } catch(e) { report(e); }
 };
 $('refresh-library').onclick = async () => {
   try { await command({type:'library'}); await checkAccess(); renderList(); $('status').textContent='Detected saves refreshed. Your edits are unchanged.'; } catch(e) { report(e); }
 };
 $('reload-character').onclick = () => load(currentId).then(()=>{$('status').textContent='Reloaded.';}).catch(report);
-$('activate').onclick = async () => {try {await command({type:'select',id:currentId});renderList();$('status').textContent='Active character updated in Paizo editors.';}catch(e){report(e);}};
 $('link-save').onclick = async () => {
   try {
     if(dirty) throw Error('Save or reload your edits before linking.');

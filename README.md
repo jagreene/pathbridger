@@ -66,7 +66,8 @@ Both builds use Manifest V3 and shared source files. Firefox uses background scr
 - Completes empty dice blocks without duplicating paired brackets or closing tags. Filled dice blocks are left alone.
 - Imports Esoteric Lore and Exploit Vulnerability checks when the export supplies those abilities, level, Charisma score, and Esoteric Lore proficiency. These checks neither take nor increase MAP. Re-import and save older characters to get the new actions. Other class abilities still need manual configuration.
 - Completes explicitly configured attacks with Paizo dice markup, optional damage, and standard, agile, or custom MAP.
-- Each message is one turn. MAP is derived from completed attack rolls before the cursor, so deleting or inserting earlier attacks updates subsequent completions. Existing dice formulas are not rewritten. Configured action labels and explicit manual labels (Strike, Attack, Trip, Grapple, Shove, Disarm, Reposition, Escape, Spell attack) count. Prose mentions, damage, and quoted rolls do not. `mapIncreases: 0` marks a non-attack check; positive integers specify how many attacks a configured action contributes. This does not implement special multi-roll action resolution.
+- Each message is one turn. MAP is derived from completed attack rolls before the cursor, so deleting or inserting earlier attacks updates subsequent completions. Existing dice formulas retain their MAP when the draft is edited. Configured action labels and explicit manual labels (Strike, Attack, Trip, Grapple, Shove, Disarm, Reposition, Escape, Spell attack) count. Prose mentions, damage, and quoted rolls do not. `mapIncreases: 0` marks a non-attack check; positive integers specify how many attacks a configured action contributes. This does not implement special multi-roll action resolution.
+- Toggling buffs updates matching attack, check, and damage rolls already in the draft. Bonuses appear separately (for example, `1d20+9 + 1`); disabling a buff removes its bonus. Quoted rolls and formulas that differ from configured actions are left alone.
 - Stores a local character library and uses one selected character for Paizo
   completions. Saving settings refreshes existing enhanced editors.
 - Preserves Paizo's normal submission process. Never submits posts itself.
@@ -134,9 +135,10 @@ Paizo page, then re-import your character with Nethys lookup enabled and save.
    Pathbuilder and Paizo tabs. Chrome 111+ or Firefox 128+ is required.
 2. Save once in Pathbuilder. Pathbridger automatically creates a character linked
    by its persistent save ID and refreshes supported calculated rolls immediately.
-3. Settings update automatically when there are no unsaved edits. The first
-   character becomes active on Paizo; **Use on Paizo** switches that selection.
-   Saving another character does not change your selection.
+3. Settings update automatically when there are no unsaved edits. The most
+   recently saved Pathbuilder character is selected automatically on Paizo;
+   choose another character in the **Use on Paizo** dropdown to switch
+   immediately.
 4. JSON import is a collapsed fallback for unavailable sync. Existing manual
    characters are preserved; names alone never cause an automatic merge.
 
