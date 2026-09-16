@@ -1,0 +1,21 @@
+.pb-enable,.pb-panel button,.pb-panel select{font:13px system-ui!important;padding:6px 10px!important;border:1px solid #a8bdb1!important;border-radius:5px!important;background:#f4f8f2!important;color:#244b39!important;cursor:pointer}.pb-enable{display:block;margin:8px 0}.pb-panel{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px;background:#edf3ed;border:1px solid #b4c9b7;border-radius:7px 7px 0 0;font:13px system-ui;color:#244b39}.pb-panel span{margin-right:auto;font-weight:bold}.pb-shell{position:relative;background:#fff;isolation:isolate}.pb-shell .pb-highlight,.pb-shell textarea.pb-input{box-sizing:border-box!important;margin:0!important;width:100%!important;min-height:180px!important;padding:12px!important;border:1px solid #b4c9b7!important;border-radius:0!important;font:14px/22px ui-monospace,monospace!important;letter-spacing:normal!important;tab-size:4!important;white-space:pre-wrap!important;overflow-wrap:break-word!important;word-break:normal!important;text-align:left!important;text-indent:0!important}.pb-highlight{position:absolute;inset:0;pointer-events:none;color:#253830;overflow:hidden;z-index:0}.pb-tag{color:#8b3bb0;font-weight:normal}.pb-shell textarea.pb-input{display:block!important;position:relative;z-index:1;background:transparent!important;color:transparent!important;caret-color:#183f2f!important;resize:vertical!important;-webkit-text-fill-color:transparent!important}.pb-shell textarea.pb-plain{color:#253830!important;-webkit-text-fill-color:#253830!important;background:white!important}.pb-menu{border:1px solid #b4c9b7;background:white;max-height:250px;overflow:auto}.pb-menu[hidden]{display:none}.pb-menu button{display:block;width:100%;text-align:left;padding:9px;border:0;background:white;color:#263f32;font:13px/1.4 system-ui;cursor:pointer}.pb-menu button.pb-selected{background:#e1eee2}.pb-help{display:block;font:12px/1.5 system-ui;color:#466450;padding:7px 0}
+
+/* Readable by default. The overlay becomes active only after a successful render. */
+.pb-shell textarea.pb-input { color:#253830!important; -webkit-text-fill-color:#253830!important; background:#fff!important; }
+.pb-shell textarea.pb-input.pb-highlight-active { color:transparent!important; -webkit-text-fill-color:transparent!important; }
+.pb-shell > pre.pb-highlight { display:block!important; position:absolute!important; inset:0!important; z-index:2!important; pointer-events:none!important; background:transparent!important; color:#253830!important; -webkit-text-fill-color:#253830!important; opacity:1!important; visibility:visible!important; overflow:hidden!important; }
+.pb-shell > pre.pb-highlight[hidden] { display:none!important; }
+.pb-shell > pre.pb-highlight .pb-tag { color:#8b3bb0!important; -webkit-text-fill-color:#8b3bb0!important; }
+.pb-panel { position:relative!important; z-index:3!important; }
+.pb-panel button { pointer-events:auto!important; position:relative!important; }
+
+/* Popup is outside the editor flow and follows the insertion point. */
+body > .pb-menu { position:fixed!important; z-index:2147483647!important; box-sizing:border-box!important; margin:0!important; border:1px solid #a8bdb1!important; border-radius:8px!important; box-shadow:0 8px 28px #183f2f33!important; overflow:auto!important; background:white!important; overscroll-behavior:contain; }
+body > .pb-menu[hidden] { display:none!important; }
+body > .pb-menu button { white-space:normal!important; overflow-wrap:anywhere!important; }
+body > .pb-caret-mirror { position:fixed!important; top:0!important; left:0!important; visibility:hidden!important; pointer-events:none!important; box-sizing:border-box!important; margin:0!important; border-style:solid!important; white-space:pre-wrap!important; overflow-wrap:break-word!important; word-break:normal!important; }
+
+.pb-buffs { position:relative; font:13px system-ui; }
+.pb-buffs summary { cursor:pointer; padding:7px; border:1px solid #a8bdb1; border-radius:5px; background:#fff; }
+.pb-buff-choices { position:absolute; top:100%; right:0; width:320px; max-height:260px; overflow:auto; background:white; color:#244b39; border:1px solid #a8bdb1; padding:8px; box-shadow:0 6px 20px #0002; z-index:10; }
+.pb-buff-choices label { display:flex; align-items:start; gap:8px; padding:8px; font:13px/1.4 system-ui; }

@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "Pathbridger",
+  "version": "0.1.0",
+  "description": "Paizo forum highlighting and Pathbuilder-informed dice completion.",
+  "permissions": [
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://paizo.com/*",
+        "https://www.paizo.com/*"
+      ],
+      "js": [
+        "api.js",
+        "core.js",
+        "buffs.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://pathbuilder2e.com/app.html*"
+      ],
+      "js": [
+        "api.js",
+        "characters.js",
+        "pathbuilder-content.js"
+      ],
+      "run_at": "document_start",
+      "css": []
+    },
+    {
+      "matches": [
+        "https://pathbuilder2e.com/app.html*"
+      ],
+      "js": [
+        "export-data.js",
+        "pathbuilder-export.js",
+        "pathbuilder-observer.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "css": []
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://elasticsearch.aonprd.com/*"
+  ],
+  "action": {
+    "default_title": "Pathbridger character settings"
+  },
+  "minimum_chrome_version": "111"
+}
