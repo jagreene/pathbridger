@@ -1,7 +1,8 @@
 # Pathbuilder save and calculated-action sync
 
-Inspected public application bundle:
-https://pathbuilder2e-data.b-cdn.net/Pathbuilder2eWebRemastered109g.js
+Inspected public application bundles:
+- https://pathbuilder2e-data.b-cdn.net/Pathbuilder2eWebRemastered109g.js
+- https://pathbuilder2e-data.b-cdn.net/Pathbuilder2eWebRemastered111k.js (October 14, 2026)
 
 ## Persistence and identity
 
@@ -14,20 +15,25 @@ Only HTTP 200 counts as success. Metadata writes and save-button clicks do not.
 Each extension character has a UUID and an automatically linked source (mode,
 scope, persistent save ID). Names and public JSON/share IDs are not identities.
 Unknown save IDs create separate records and request calculation on that same save.
-The first record becomes active; subsequent saves preserve the active selection.
-Legacy manual records are never merged by name. Active Paizo character selection
-is independent of which linked record is updated. Background writes are serialized;
+Each successful save selects its linked character for Paizo.
+Legacy manual records are never merged by name. Calculated-export completion does not change that selection. Background writes are serialized;
 older snapshots and export results superseded by saves/settings edits are rejected.
 
 ## Reusing the actual exporter without publication
 
 No supported public export function was found on the page's global API. The
-v109g UI exposes delegated menu targets `sidenav-share` and `sidenav-json`.
+v109g and v111k UIs expose delegated menu targets `sidenav-share` and `sidenav-json`.
 
 - Share produces a local JSON envelope whose `build` string contains an internal
   `characterData` object. It normally POSTs to `/app/post_emailed.php`.
 - JSON export calculates public `{build, id}` JSON synchronously, then normally
   POSTs to `/app/post_json.php`.
+- v111k moves both POSTs to `https://pathbuilder-backend.com/app/builds/`.
+  Both endpoint origins/paths are matched explicitly without new host permissions:
+  interception occurs in the page before network access. The menu targets and
+  DONE/204 completion behavior remain the same. v111k also refuses calculated
+  JSON larger than 60,000 bytes before sending; that native limit still applies
+  and produces a timeout/reload instruction in the adapter.
 - Automatic capture intercepts those specific POSTs at `XMLHttpRequest.send`
   without calling native send. The inspected completion handlers receive a local
   DONE/204 state: this clears their spinner without publishing an ID, changing
@@ -42,7 +48,7 @@ v109g UI exposes delegated menu targets `sidenav-share` and `sidenav-json`.
 - The generated JSON must have matching name and level and a weapon array before
   it reaches the importer. Neither displayed name nor export ID is used alone.
 
-The adapter checks for the exact inspected v109g script URL. Unknown versions
+The adapter checks for the exact inspected v109g or v111k script URL. Unknown versions
 fail closed. If an asynchronous exporter times out, interception remains armed
 for its late request so it cannot accidentally become a public upload; further
 automatic capture requires a reload. No minified function hooks, credential reads,

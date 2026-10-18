@@ -2,7 +2,7 @@
 <h1 id="test-result">Testing save → local export → roll refresh…</h1>
 <button id="sidenav-share">Synthetic raw exporter</button><button id="sidenav-json">Synthetic JSON exporter</button>
 <!-- Inert marker enables the version guard for this synthetic protocol fixture. -->
-<script type="application/json" src="https://pathbuilder2e-data.b-cdn.net/Pathbuilder2eWebRemastered109g.js"></script>
+<script type="application/json" src="https://pathbuilder2e-data.b-cdn.net/Pathbuilder2eWebRemastered111k.js"></script>
 <script src="../extension/core.js?v=0.2.2"></script><script src="../extension/rules.js?v=0.2.2"></script><script src="../extension/characters.js?v=0.2.2"></script><script src="../extension/export-data.js?v=0.2.2"></script>
 <script>
 const syntheticRaw={characterName:'Synthetic browser hero',characterLevel:5,webID:'synthetic-browser-id',listPlayerWeapons:[]};
@@ -15,7 +15,7 @@ XMLHttpRequest.prototype.send=function(){uploads++;return Reflect.apply(nativeSe
 for(const [id,path,body] of [['sidenav-share','post_emailed.php',()=>JSON.stringify({build:JSON.stringify({characterData:syntheticRaw})})],['sidenav-json','post_json.php',()=>JSON.stringify(syntheticExport)]]) {
  document.getElementById(id).onclick=()=>{
   const ring=document.createElement('div');ring.id='ring-holder';document.body.append(ring);
-  const x=new XMLHttpRequest();x.open('POST',location.origin+'/app/'+path);x.setRequestHeader('Accept','application/json');
+  const x=new XMLHttpRequest();x.open('POST','https://pathbuilder-backend.com/app/builds/'+path);x.setRequestHeader('Accept','application/json');
   x.onreadystatechange=()=>{if(x.readyState===4){ring.remove();if(x.status===200)publishedIds++;}};
   x.send(body());
  };

@@ -14,6 +14,7 @@ for (const browser of ['chrome', 'firefox']) {
     let opened = 0;
     const api = {
       action: {onClicked: {addListener: fn => {onClick = fn;}}},
+      notifications: {onClicked: {addListener: () => {}}},
       runtime: {openOptionsPage: async () => {opened++;}, onMessage: {addListener: () => {}}},
       storage: {local: {get: async () => ({character: {name: 'Test'}})}}
     };
@@ -36,7 +37,7 @@ test('both packages have complete assets, correct manifests and adapter load ord
     const root = path.join(output, browser);
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json')));
     assert.equal(manifest.manifest_version, 3);
-    assert.deepEqual(manifest.permissions, ['storage']);
+    assert.deepEqual(manifest.permissions, ['storage', 'notifications']);
     assert.deepEqual(manifest.host_permissions, ['https://elasticsearch.aonprd.com/*', 'https://pathbuilder2e.com/*']);
     assert.ok(manifest.action);
     assert.equal(manifest.browser_action, undefined);
@@ -44,8 +45,11 @@ test('both packages have complete assets, correct manifests and adapter load ord
       assert.deepEqual(manifest.background, {service_worker: 'background.js'});
       assert.equal(manifest.browser_specific_settings, undefined);
     } else {
-      assert.deepEqual(manifest.background.scripts, ['api.js', 'core.js', 'rules.js', 'export-data.js', 'characters.js', 'background.js']);
+      assert.deepEqual(manifest.background.scripts, ['api.js', 'core.js', 'rules.js', 'export-data.js', 'characters.js', 'forum.js', 'forum-background.js', 'background.js']);
       assert.equal(manifest.browser_specific_settings.gecko.id, 'pathbridger@local.invalid');
+      assert.equal(manifest.browser_specific_settings.gecko.strict_min_version, '140.0');
+      assert.deepEqual(manifest.browser_specific_settings.gecko.data_collection_permissions, {required: ['searchTerms']});
+      assert.equal(manifest.browser_specific_settings.gecko_android, undefined);
     }
     for (const entry of manifest.content_scripts) {
       if (entry.world === 'MAIN') assert.deepEqual(entry.js, ['export-data.js', 'pathbuilder-export.js', 'pathbuilder-observer.js']);

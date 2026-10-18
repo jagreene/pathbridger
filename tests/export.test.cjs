@@ -49,7 +49,7 @@ test('old export completion and failed verification do not change actions',()=>{
  assert.throws(()=>sync.applyExport(l,{...result(),after:envelope({...raw,googleFileID:'wrong'})},core,rules,proof,{},100));assert.deepEqual(l,previous);
  assert.equal(sync.applyExport(l,{source,startedAt:1,error:'Timeout'},core,rules,proof,{},100),'review');assert.deepEqual(l.records[0].actions,previous.records[0].actions);assert.equal(l.records[0].syncError,'Timeout');
 });
-function exporter({version='109g',rawDelay=0,timeout=5000,secondRaw,interaction=false}={}) {
+function exporter({version='111k',rawDelay=0,timeout=5000,secondRaw,interaction=false}={}) {
  const uploads=[],clicks=[],listeners={};let ring=false,rawCount=0,ids=0;
  class XHR extends EventTarget {
    open(method,url){this.url=url;this.method=method;}
@@ -59,7 +59,7 @@ function exporter({version='109g',rawDelay=0,timeout=5000,secondRaw,interaction=
    if(id==='ring-holder')return ring?{}:null;
    if(!['sidenav-share','sidenav-json'].includes(id))return null;
    return {click(){clicks.push(id);ring=true;const send=()=>{
-     const x=new XHR();x.open('POST','https://pathbuilder2e.com/app/'+(id==='sidenav-share'?'post_emailed.php':'post_json.php'));
+     const x=new XHR();x.open('POST',(version==='109g'?'https://pathbuilder2e.com/app/':'https://pathbuilder-backend.com/app/builds/')+(id==='sidenav-share'?'post_emailed.php':'post_json.php'));
      x.onreadystatechange=()=>{if(x.readyState===4){ring=false;if(x.status===200)ids++;}};
      if(id==='sidenav-share') {rawCount++;x.send(rawCount===2&&secondRaw?envelope(secondRaw):envelope());if(interaction)for(const fn of listeners.input||[])fn({isTrusted:true});}
      else x.send(JSON.stringify(exported));
@@ -75,7 +75,7 @@ test('automatic raw/JSON/raw sequence captures calculated data with zero uploads
  const manual=new e.XHR();manual.open('POST','https://pathbuilder2e.com/app/post_json.php');manual.send('manual');assert.equal(e.uploads.length,1);
 });
 test('unsupported version, changed character and user input fail closed',async()=>{
- const version=exporter({version:'110a'});await assert.rejects(version.capture(snapshot),/version/);assert.equal(version.clicks.length,0);
+ const version=exporter({version:'112a'});await assert.rejects(version.capture(snapshot),/version/);assert.equal(version.clicks.length,0);
  for(const options of [{secondRaw:{...raw,googleFileID:'other'}},{interaction:true}]) {
   const e=exporter(options);await assert.rejects(e.capture(snapshot));assert.equal(e.uploads.length,0);
  }
@@ -101,4 +101,9 @@ test('missing cached spell rule preserves its last good roll while refreshing we
  const data=structuredClone(exported);data.build.spellCasters=[{name:'Arcane',ability:'cha',proficiency:2,spells:[{spellLevel:0,list:['Test Ray']}]}];
  assert.equal(sync.applyExport(l,{...result(),exported:JSON.stringify(data)},core,rules,proof,{},100),'review');
  assert.equal(c.actions[0].attack,14);assert.equal(c.actions.find(a=>a.name===spell.name).attack,12);
+});
+
+test('previous v109g same-origin exporter remains supported',async()=>{
+ const e=exporter({version:'109g'});await e.capture(snapshot);
+ assert.equal(e.uploads.length,0);assert.equal(e.ring,false);
 });

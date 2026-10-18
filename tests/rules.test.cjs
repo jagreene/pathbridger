@@ -50,3 +50,21 @@ test('failed lookups retain existing imported actions and report failure',async(
  const result=await R.enrich(build,c,'remaster',{},()=>{},async()=>{throw Error('Offline');});
  assert.deepEqual(result.actions,c.actions); assert.match(result.reports[0],/Offline/);
 });
+test('offline lookups stop after the first failure instead of timing out per ability',async()=>{
+ let calls=0;
+ const data={name:'Offline hero',weapons:[{name:'Sword',attack:8}],specials:['One','Two','Three']};
+ const c=P.normalize(data);
+ const result=await R.enrich(data,c,'remaster',{},()=>{},async()=>{calls++;throw Error('Offline');});
+ assert.equal(calls,1);assert.deepEqual(result.actions,c.actions);assert.match(result.reports.at(-1),/skipped/);
+});
+test('skip cancels an in-flight lookup and retains the basic imported rolls',async()=>{
+ const controller=new AbortController();
+ const data={name:'Hero',weapons:[{name:'Sword',attack:8}],specials:['One','Two']};
+ const c=P.normalize(data);let calls=0;
+ const result=R.enrich(data,c,'remaster',{},()=>{},async(url,{signal})=>{
+  calls++;
+  return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('Skipped')),{once:true}));
+ },controller.signal);
+ controller.abort();
+ assert.deepEqual((await result).actions,c.actions);assert.equal(calls,1);
+});

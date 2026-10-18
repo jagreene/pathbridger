@@ -11,7 +11,7 @@
     }).join('');
   }
   function normalize(data) {
-    const b = data.build || data;
+    const b = data?.build || data;
     if (!b || typeof b !== 'object' || typeof b.name !== 'string') throw Error('Expected a Pathbuilder JSON export with a character name.');
     const actions = [], warnings = [];
     for (const w of b.weapons || []) {

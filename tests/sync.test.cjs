@@ -99,15 +99,52 @@ test('aborted and reused cloud requests do not replay an earlier save',()=>{
  assert.equal(events.length,1);assert.equal(events[0].snapshot.source.saveId,'file-B');
 });
 function background(initial={}) {
- let listener,state=structuredClone(initial),fail=false;
- const api={action:{onClicked:{addListener(){}}},runtime:{id:'test',getURL:path=>'moz-extension://test/'+path,onMessage:{addListener:fn=>listener=fn}},storage:{local:{get:async()=>structuredClone(state),set:async value=>{await new Promise(r=>setTimeout(r,1));if(fail)throw Error('Storage quota exceeded');state={...state,...structuredClone(value)};}}}};
+ let listener,state=structuredClone(initial),fail=false,writes=0;
+ const storageListeners=[];
+ const api={action:{onClicked:{addListener(){}}},runtime:{id:'test',getURL:path=>'moz-extension://test/'+path,onMessage:{addListener:fn=>listener=fn}},storage:{local:{get:async()=>structuredClone(state),set:async value=>{await new Promise(r=>setTimeout(r,1));if(fail)throw Error('Storage quota exceeded');const old=state;state={...state,...structuredClone(value)};writes++;for(const changed of storageListeners)changed(Object.fromEntries(Object.keys(value).map(key=>[key,{oldValue:old[key],newValue:state[key]}])),'local');}}}};
  const context=vm.createContext({browser:api,URL,TextEncoder,crypto:require('node:crypto').webcrypto,Date});
  for(const file of ['api.js','core.js','rules.js','export-data.js','characters.js','background.js'])vm.runInContext(fs.readFileSync('extension/'+file,'utf8'),context);
  const options={id:'test',url:'moz-extension://test/options.html'};
  const content={id:'test',url:'https://pathbuilder2e.com/app.html?v=109g',tab:{id:1},frameId:0};
  const paizo={id:'test',url:'https://paizo.com/community',tab:{id:2},frameId:0};
- return {get state(){return state;},set fail(value){fail=value;},options,content,paizo,request:(message,sender=options)=>new Promise(resolve=>{const handled=listener(message,sender,resolve);if(!handled)resolve(undefined);})};
+ return {get state(){return state;},get writes(){return writes;},storageListeners,set fail(value){fail=value;},options,content,paizo,request:(message,sender=options)=>new Promise(resolve=>{const handled=listener(message,sender,resolve);if(!handled)resolve(undefined);})};
 }
+test('character list reads do not write storage after one-time migration',async()=>{
+ const b=background({character:{name:'Hero',actions:[action]}});
+ const first=await b.request({type:'characters'},b.paizo);
+ assert.equal(first.result.records[0].name,'Hero');assert.equal(b.writes,1);
+ for(let i=0;i<5;i++) {
+   await b.request({type:'characters'},b.paizo);
+   await b.request({type:'library'});
+ }
+ assert.equal(b.writes,1,'read requests must not emit more storage changes');
+});
+test('idle Paizo tabs settle after a real change even when Firefox emits unchanged storage keys',async()=>{
+ const b=background({characterLibrary:{version:1,records:[{id:'hero',name:'Hero',actions:[action],revision:1}],activeId:'hero',candidates:[]}});
+ const pending=new Set();let requests=0;
+ for(let tab=0;tab<3;tab++) {
+   const api={storage:{local:{get:async()=>structuredClone(b.state)},onChanged:{addListener:fn=>b.storageListeners.push(fn)}},runtime:{sendMessage:message=>{
+     requests++;
+     // Bound a regression so the old feedback loop fails without hanging CI.
+     if(requests>30)return Promise.resolve({error:'feedback loop detected'});
+     const result=b.request(message,{...b.paizo,tab:{id:tab+2}});
+     pending.add(result);result.finally(()=>pending.delete(result));return result;
+   }}};
+   vm.runInNewContext(fs.readFileSync('extension/content.js','utf8'),{
+     PathbridgerAPI:api,PathbridgerBuffs:{defaults:[]},
+     document:{querySelectorAll:()=>[],documentElement:{}},
+     MutationObserver:class {observe(){}}
+   });
+ }
+ while(pending.size)await Promise.all([...pending]);
+ assert.equal(requests,3,'opening idle Paizo tabs must settle after one read each');
+ assert.equal(b.writes,0);
+ await b.request({type:'edit',id:'hero',revision:1,name:'Updated Hero',actions:[action]});
+ while(pending.size)await Promise.all([...pending]);
+ assert.equal(requests,6,'one edit should refresh each tab once');
+ assert.equal(b.writes,1,'refreshes must never write the library back');
+ assert.equal(b.state.character.name,'Updated Hero');
+});
 test('background serializes simultaneous writes and never exposes the library to a page',async()=>{
  const b=background({character:{name:'Hero',actions:[action]},buffs:[{name:'untouched'}]});
  const first=await b.request({type:'library'}),id=first.library.activeId;

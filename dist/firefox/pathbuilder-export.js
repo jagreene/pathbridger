@@ -1,7 +1,12 @@
-/* v109g local-only export: run the site's exporter, suppress its upload.
+/* Verified v109g/v111k local-only export: run the site's exporter, suppress its upload.
    No minified runtime functions or private character globals are accessed. */
 (() => {
-  const endpoints=new Set(['/app/post_emailed.php','/app/post_json.php']);
+  const endpoints=new Map([
+    ['https://pathbuilder2e.com/app/post_emailed.php','raw'],
+    ['https://pathbuilder2e.com/app/post_json.php','json'],
+    ['https://pathbuilder-backend.com/app/builds/post_emailed.php','raw'],
+    ['https://pathbuilder-backend.com/app/builds/post_json.php','json']
+  ]);
   const open=XMLHttpRequest.prototype.open,send=XMLHttpRequest.prototype.send;
   const destinations=new WeakMap();
   let pending=null, disabled=false, running=false, interactions=0;
@@ -16,11 +21,12 @@
     const result=Reflect.apply(open,this,arguments);
     destinations.delete(this);
     try {const parsed=new URL(url,location.href);
-    if(String(method).toUpperCase()==='POST' && parsed.origin===location.origin && endpoints.has(parsed.pathname))destinations.set(this,parsed.pathname);}catch(_){}
+    const endpoint=endpoints.get(parsed.origin+parsed.pathname);
+    if(String(method).toUpperCase()==='POST' && endpoint)destinations.set(this,endpoint);}catch(_){}
     return result;
   };
   function completeLocally(xhr) {
-    // v109g's completion handlers remove their spinner for every DONE response;
+    // Both verified versions remove their spinner for every DONE response;
     // only 200 publishes an ID/dialog and 406 opens an account error. A local
     // 204 takes neither branch. Never run the native send() for automatic exports.
     Object.defineProperties(xhr,{readyState:{value:4,configurable:true},status:{value:204,configurable:true}});
@@ -52,16 +58,16 @@
   }
   async function capture(snapshot) {
     if(running||disabled)throw Error('Pathbuilder exporter is busy or needs a page reload.');
-    if(!Array.from(document.scripts).some(s=>/^https:\/\/pathbuilder2e-data\.b-cdn\.net\/Pathbuilder2eWebRemastered109g\.js(?:\?|$)/.test(s.src)))throw Error('Automatic export is not verified for this Pathbuilder version. Import JSON manually.');
+    if(!Array.from(document.scripts).some(s=>/^https:\/\/pathbuilder2e-data\.b-cdn\.net\/Pathbuilder2eWebRemastered(?:109g|111k)\.js(?:\?|$)/.test(s.src)))throw Error('Automatic export is not verified for this Pathbuilder version. Update Pathbridger or import Export JSON in its settings.');
     if(document.getElementById('ring-holder'))throw Error('Pathbuilder is busy. Save again after it finishes.');
     running=true;
     const revision=interactions;
     try {
-      const before=await request('sidenav-share','/app/post_emailed.php');
+      const before=await request('sidenav-share','raw');
       PathbridgerExportData.verifyRaw(snapshot,before);
       if(revision!==interactions)throw Error('Character was edited during export. Save again.');
-      const exported=await request('sidenav-json','/app/post_json.php');
-      const after=await request('sidenav-share','/app/post_emailed.php');
+      const exported=await request('sidenav-json','json');
+      const after=await request('sidenav-share','raw');
       if(revision!==interactions)throw Error('Character was edited during export. Save again.');
       const result={before,exported,after};
       PathbridgerExportData.verify(snapshot,result);

@@ -12,6 +12,7 @@ backups/
 # Local tooling and build output
 .DS_Store
 node_modules/
+artifacts/
 *.zip
 *.xpi
 *.log

@@ -3,13 +3,15 @@
  const html=await (await fetch('../extension/options.html?v=0.2.2')).text();
  const parsed=new DOMParser().parseFromString(html,'text/html');document.body.append(parsed.querySelector('main'));
  let library={version:1,records:[{id:'hero',name:'Test Hero',actions:[{name:'Custom action',attack:12}],revision:0}],activeId:'hero',candidates:[{name:'Test Hero',source:{mode:'gdrive',scope:'drive',saveId:'file-A'}}]};
+ let storageListener=()=>{}, cacheFailure=false, releaseLibrary=null, delayLibrary=false;
  let missingResponse=new URLSearchParams(location.search).has('missing');
  globalThis.browser={runtime:{sendMessage:async message=>{
+   if(message.type==='library' && delayLibrary) {delayLibrary=false;await new Promise(resolve=>{releaseLibrary=resolve;});}
    if(missingResponse){missingResponse=false;return {};}
    let result;
    if(message.type!=='library')result=PathbridgerCharacters.mutate(library,message,Pathbridger,()=> 'new-character');
    return {library:structuredClone(library),result};
- }},storage:{local:{get:async()=>({}),set:async()=>{}},onChanged:{addListener(){}}}};
+ }},storage:{local:{get:async()=>({}),set:async()=>{if(cacheFailure)throw Error('Cache full');}},onChanged:{addListener(fn){storageListener=fn;}}}};
  for(const file of ['api.js','core.js','characters.js','rules.js','options.js'])await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='../extension/'+file+'?v=0.2.2';s.onload=resolve;s.onerror=reject;document.body.append(s);});
  const pause=()=>new Promise(r=>setTimeout(r,0));const el=id=>document.getElementById(id);const check=(value,message)=>{if(!value)throw Error(message);};
  await pause();
@@ -18,13 +20,13 @@
    check(el('status').textContent.includes('Character library was not returned'),'clear initialization error');
    el('reload-character').click();await pause();
    check(!el('import').disabled,'reload recovers missing library');
-   el('characters').value='hero';el('characters').dispatchEvent(new Event('change'));
+   el('characters').value='hero';el('characters').dispatchEvent(new Event('change'));await pause();
  }
  check(el('name').value==='Test Hero','migration/initial display');
  el('save-sources').value='0';el('link-save').click();await pause();check(library.records[0].source.saveId==='file-A','link source');
  check(el('sync-status').textContent.includes('Save again'),'link status');
  el('name').value='Edited Hero';el('name').dispatchEvent(new Event('input'));el('save').click();await pause();check(library.records[0].name==='Edited Hero','save edit');
- el('characters').value='';el('characters').dispatchEvent(new Event('change'));check(el('name').value==='','new character form');
+ el('characters').value='';el('characters').dispatchEvent(new Event('change'));await pause();check(el('name').value==='','new character form');
  el('name').value='Other';el('actions').value='[]';el('save').click();await pause();check(library.records.length===2,'create second character');
  el('characters').value='hero';el('characters').dispatchEvent(new Event('change'));await pause();check(library.activeId==='hero','set active character');
  el('unlink-save').click();await pause();check(!library.records[0].source,'unlink character');
@@ -37,6 +39,52 @@
  el('import').click();await pause();
  check(lookups===1 && el('status').textContent.includes('Imported for review'),'manual import after ability lookups');
  el('save').click();await pause();check(library.records.find(c=>c.id==='hero').name==='Imported Hero','save manual import');
- el('test-result').textContent='PASS — options: load, link, edit, create, select active, unlink, adopt calculated rolls, manual import after lookups';
+
+ const expected=JSON.parse(el('actions').value);
+ for(const [text,message] of [['','Choose a Pathbuilder'],['{broken','Invalid JSON'],['https://pathbuilder2e.com/json.php?id=1','export link'],[JSON.stringify({characterData:{characterName:'Raw'}}),'internal save/share']]) {
+  el('source').value=text;el('import').click();await pause();
+  check(el('import-status').textContent.includes(message),'helpful input error: '+message);
+  check(JSON.stringify(JSON.parse(el('actions').value))===JSON.stringify(expected),'invalid input preserves existing actions');
+  check(!el('import').disabled && !el('save').disabled,'recover controls after invalid input');
+ }
+ const upload=new DataTransfer();upload.items.add(new File([JSON.stringify({build:{name:'File Hero',weapons:[{name:'Spear',attack:8}]}})],'hero.json',{type:'application/json'}));
+ el('file').files=upload.files;el('file').dispatchEvent(new Event('change'));
+ for(let i=0;i<100&&el('import').disabled;i++)await new Promise(r=>setTimeout(r,10));
+ check(el('source').value.includes('File Hero'),'file loads JSON text');
+ cacheFailure=true;el('import').click();await pause();
+ check(el('name').value==='File Hero' && el('warnings').textContent.includes('Cache full'),'cache failure does not discard import');
+ cacheFailure=false;
+ PathbridgerRules.enrich=async(data,c,edition,cache,progress,fetcher,signal)=>{
+  progress('1/2: Slow ability');
+  await new Promise(resolve=>signal.addEventListener('abort',resolve,{once:true}));
+  return {...c,reports:['Lookups skipped']};
+ };
+ el('source').value=JSON.stringify({build:{name:'Skipped Hero',weapons:[{name:'Sword',attack:9}]}});
+ el('import').click();await pause();
+ check(!el('skip-lookups').hidden && el('source').disabled && el('reload-character').disabled,'in-flight import has skip control and protects inputs');
+ storageListener({characterLibrary:{newValue:library}},'local');await pause();
+ check(el('source').value.includes('Skipped Hero'),'storage update preserves import');
+ el('skip-lookups').click();await pause();
+ check(el('name').value==='Skipped Hero' && !el('save').disabled && el('skip-lookups').hidden,'skip yields savable exported rolls');
+ el('save').click();await pause();check(library.records.find(c=>c.id==='hero').name==='Skipped Hero','skipped import saves');
+
+ // Reproduce the reported flash/clear: refresh starts first, paste/file follows,
+ // then the pending background response arrives.
+ for(const mode of ['paste','file']) {
+  el('reload-character').click();await pause();
+  delayLibrary=true;storageListener({characterLibrary:{newValue:library}},'local');await pause();
+  if(mode==='paste') {
+   el('source').value='{"build":{"name":"Pasted during refresh","weapons":[]}}';
+   el('source').dispatchEvent(new Event('input'));
+  } else {
+   const selected=new DataTransfer();selected.items.add(new File(['{"build":{"name":"File during refresh","weapons":[]}}'],'refresh.json'));
+   el('file').files=selected.files;el('file').dispatchEvent(new Event('change'));
+  }
+  releaseLibrary();await pause();
+  for(let i=0;i<100&&el('import').disabled;i++)await new Promise(r=>setTimeout(r,10));
+  check(el('source').value.includes('during refresh'),'pending refresh must preserve '+mode+' input');
+  check(mode!=='file'||el('file').files.length===1,'pending refresh preserves selected file');
+ }
+ el('test-result').textContent='PASS — options: load, link, edit, create, select active, unlink, adopt calculated rolls, manual import, validation, file input, cache failure, skip lookups, pending refresh preserves paste and file';
 })().catch(error=>{document.getElementById('test-result').textContent='FAIL — '+error.stack;});
 </script></body></html>

@@ -1,0 +1,18 @@
+{
+  "name": "pathbridger",
+  "private": true,
+  "description": "Development and Firefox release tooling for Pathbridger.",
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "lint:firefox": "npm run build && web-ext lint --source-dir dist/firefox --self-hosted --no-config-discovery",
+    "package:firefox": "npm run lint:firefox && web-ext build --source-dir dist/firefox --artifacts-dir artifacts/firefox --filename pathbridger-{version}-firefox-unsigned.zip --overwrite-dest --no-config-discovery",
+    "sign:firefox": "npm run lint:firefox && web-ext sign --source-dir dist/firefox --artifacts-dir artifacts/firefox --channel unlisted --no-config-discovery"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "web-ext": "10.7.0"
+  }
+}

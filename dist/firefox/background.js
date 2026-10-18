@@ -1,5 +1,5 @@
 // Chrome loads a classic service worker; Firefox loads the same files in order.
-if (typeof importScripts === 'function') importScripts('api.js', 'core.js', 'rules.js', 'export-data.js', 'characters.js');
+if (typeof importScripts === 'function') importScripts('api.js', 'core.js', 'rules.js', 'export-data.js', 'characters.js', 'forum.js', 'forum-background.js');
 PathbridgerAPI.action.onClicked.addListener(() => PathbridgerAPI.runtime.openOptionsPage());
 let characterQueue = Promise.resolve();
 function enqueue(work) {
@@ -36,7 +36,10 @@ PathbridgerAPI.runtime.onMessage.addListener((message, sender, respond) => {
     else if(message.type==='pathbuilder-export') result=PathbridgerCharacters.applyExport(library,message,Pathbridger,PathbridgerRules,PathbridgerExportData,state.rulesCache||{},Date.now());
     else if(message.type==='characters') result={activeId:library.activeId,records:library.records.map(({id,name})=>({id,name}))};
     else if (message.type !== 'library') result = PathbridgerCharacters.mutate(library, message, Pathbridger, () => crypto.randomUUID());
-    if(message.type !== 'library' || !state.characterLibrary) await PathbridgerAPI.storage.local.set({characterLibrary:library, character:PathbridgerCharacters.projection(library)});
+    // Picker reads must not emit storage changes: Paizo tabs refresh their
+    // choices on that event, and Firefox can emit it even for unchanged values.
+    const readOnly = message.type === 'library' || message.type === 'characters';
+    if(!readOnly || state.characterLibrary?.version !== 1) await PathbridgerAPI.storage.local.set({characterLibrary:library, character:PathbridgerCharacters.projection(library)});
     // Page content scripts never receive the library or unrelated characters.
     return options ? {library,result,connection:state.pathbuilderConnection} : {result,requestExport:message.type==='pathbuilder-save' && result==='saved'};
   }).then(respond, error => respond({error:error.message}));

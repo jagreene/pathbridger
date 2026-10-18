@@ -30,15 +30,24 @@
     url.searchParams.set('NoRedirect','1');
     return url.href;
   }
-  async function lookup(request, edition, cache, fetcher=fetch) {
+  async function lookup(request, edition, cache, fetcher=fetch, signal) {
     const id = `${edition}:${request.kind}:${key(request.name)}`;
     if(cache[id] && Date.now()-cache[id].time < 7*86400000) return cache[id].record;
     const query = {size:100,query:{match_phrase:{name:request.name}}};
     const url = new URL('https://elasticsearch.aonprd.com/aon/_search');
     url.searchParams.set('source',JSON.stringify(query)); url.searchParams.set('source_content_type','application/json');
-    const response = await fetcher(url.href,{credentials:'omit',signal:AbortSignal.timeout(15000)});
-    if(!response.ok) throw Error(`Nethys returned HTTP ${response.status}.`);
-    const result = await response.json();
+    // AbortSignal.any is newer than our minimum Chrome version.
+    const controller=new AbortController();
+    const abort=()=>controller.abort();
+    if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
+    const timer=setTimeout(abort,15000);
+    let result;
+    try {
+      const response = await fetcher(url.href,{credentials:'omit',signal:controller.signal});
+      if(!response.ok) throw Error(`Nethys returned HTTP ${response.status}.`);
+      result = await response.json();
+    } catch(error) { throw Object.assign(new Error(error.message),{unavailable:true}); }
+    finally {clearTimeout(timer);signal?.removeEventListener('abort',abort);}
     if(!Array.isArray(result.hits?.hits)) throw Error('Nethys search format changed.');
     const record = choose(result.hits.hits,request,edition);
     sourceURL(record.url);
@@ -82,14 +91,15 @@
     }
     return reference;
   }
-  async function enrich(data, character, edition, cache, progress=()=>{}, fetcher=fetch) {
+  async function enrich(data, character, edition, cache, progress=()=>{}, fetcher=fetch, signal) {
     const build = data.build || data;
     const list = requests(build);
     const actions = character.actions.map(a=>({...a})), reports=[];
     for(let i=0;i<Math.min(list.length,150);i++) {
+      if(signal?.aborted) {reports.push('Remaining Nethys lookups skipped. Exported rolls are available; review unresolved abilities manually.');break;}
       const request = list[i]; progress(`${i+1}/${list.length}: ${request.name}`);
       try {
-        const record = await lookup(request,edition,cache,fetcher);
+        const record = await lookup(request,edition,cache,fetcher,signal);
         const existing = actions.find(a=>key(a.name)===key(request.name));
         const action = compile(record,request,build,existing);
         if(request.kind==='weapon') {
@@ -98,7 +108,10 @@
         } else if(existing) Object.assign(existing,action);
         else actions.push(action);
         reports.push(`${request.name}: ${action.kind==='reference' ? 'rules reference; manual resolution' : 'matched'} (${record.id}).`);
-      } catch(error) { reports.push(`${request.name}: ${error.message}`); }
+      } catch(error) {
+        reports.push(`${request.name}: ${error.message}`);
+        if(error.unavailable) {reports.push('Remaining Nethys lookups skipped. Exported rolls are available; try lookups again later.');break;}
+      }
       // Keep import traffic modest; cached entries remain available offline.
       await new Promise(resolve=>setTimeout(resolve,200));
     }
